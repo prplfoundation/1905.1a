@@ -72,24 +72,56 @@
 #include <libubox/blobmsg.h>
 #include <libubus.h>
 
-static bool uci_teardown_iface(struct interface *interface)
+#include <platform.h>
+
+/** Invoke method on UCI over ubus
+ *
+ * @a b is freed whether or not the method fails.
+ *
+ * The call is done synchronously.
+ */
+static bool uci_invoke(const char *method, struct blob_buf *b)
 {
-    struct interfaceWifi *interface_wifi = container_of(interface, struct interfaceWifi, i);
     struct ubus_context *ctx = ubus_connect(NULL);
-    char macstr[18];
-    uint32_t id;
-    struct blob_buf b;
-    void *match;
     bool ret = true;
+    uint32_t id;
 
     if (!ctx) {
         fprintf(stderr, "failed to connect to ubus.\n");
         return false;
     }
 
+    if (ubus_lookup_id(ctx, "uci", &id) ||
+        ubus_invoke(ctx, id, method, b->head, NULL, NULL, 3000)) {
+        ret = false;
+    }
+
+    blob_buf_free(b);
+    ubus_free(ctx);
+    return ret;
+}
+
+
+
+static bool uci_commit_wireless()
+{
+    struct blob_buf b;
+
+    blob_buf_init(&b, 0);
+    blobmsg_add_string(&b, "config", "wireless");
+    return uci_invoke("commit", &b);
+}
+
+static bool uci_teardown_iface(struct interface *interface)
+{
+    struct interfaceWifi *interface_wifi = container_of(interface, struct interfaceWifi, i);
+    char macstr[18];
+    struct blob_buf b;
+    void *match;
+
     if (interface->type != interface_type_wifi)
     {
-        ret = false;
+        return false;
     }
 
     blob_buf_init(&b, 0);
@@ -100,42 +132,21 @@ static bool uci_teardown_iface(struct interface *interface)
     blobmsg_add_string(&b, "bssid", macstr);
     blobmsg_add_string(&b, "device", (char *)interface_wifi->radio->priv);
     blobmsg_close_table(&b, match);
-    if (ubus_lookup_id(ctx, "uci", &id) ||
-        ubus_invoke(ctx, id, "delete", b.head, NULL, NULL, 3000)) {
-        ret = false;
-        goto out;
+    if (!uci_invoke("delete", &b)) {
+        return false;
     }
 
-    blob_buf_free(&b);
-    blob_buf_init(&b, 0);
-    blobmsg_add_string(&b, "config", "wireless");
-
-    if (ubus_lookup_id(ctx, "uci", &id) ||
-        ubus_invoke(ctx, id, "commit", b.head, NULL, NULL, 3000)) {
-        ret = false;
-        goto out;
-    }
-
-    out:
     /* @todo The removal of the interface should be detected through netlink. For the time being, however, we update the data model
      * straight away. */
     interfaceWifiRemove(interface_wifi);
-    return ret;
+    return uci_commit_wireless();
 }
 
 static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool ap)
 {
     char macstr[18];
-    struct ubus_context *ctx = ubus_connect(NULL);
-    uint32_t id;
     struct blob_buf b;
     void *values;
-    bool ret = true;
-
-    if (!ctx) {
-        fprintf(stderr, "failed to connect to ubus.\n");
-        return false;
-    }
 
     blob_buf_init(&b, 0);
     blobmsg_add_string(&b, "config", "wireless");
@@ -150,20 +161,8 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
     blobmsg_add_string(&b, "encryption", "none"); /* @todo set encryption */
     /* @todo handle backhaul flags */
     blobmsg_close_table(&b, values);
-    if (ubus_lookup_id(ctx, "uci", &id) ||
-        ubus_invoke(ctx, id, "add", b.head, NULL, NULL, 3000)) {
-        ret = false;
-        goto create_ap_out;
-    }
-
-    blob_buf_free(&b);
-    blob_buf_init(&b, 0);
-    blobmsg_add_string(&b, "config", "wireless");
-
-    if (ubus_lookup_id(ctx, "uci", &id) ||
-        ubus_invoke(ctx, id, "commit", b.head, NULL, NULL, 3000)) {
-        ret = false;
-        goto create_ap_out;
+    if (!uci_invoke("add", &b)) {
+        return false;
     }
 
     /* @todo The presence of the new AP should be detected through netlink. For the time being, however, we update the data model
@@ -174,10 +173,7 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
     memcpy(&iface->bssInfo, &bssInfo, sizeof(bssInfo));
     iface->i.tearDown = uci_teardown_iface;
 
-create_ap_out:
-    blob_buf_free(&b);
-    ubus_free(ctx);
-    return ret;
+    return uci_commit_wireless();
 }
 
 static bool uci_create_ap(struct radio *radio, struct bssInfo bssInfo)
@@ -272,8 +268,6 @@ void uci_register_handlers(void)
     static struct blob_buf req;
     static dlist_head uciradios;
     struct radio *radio;
-    struct blob_attr *cur;
-    int rem;
     struct uciradiolist *uciphymatch;
     char *phyname;
 
@@ -330,7 +324,7 @@ void uci_register_handlers(void)
     }
 
 reghandlers_out:
-    while ((uciphymatch = container_of(dlist_get_first(uciradios), struct uciradiolist, l)))
+    while ((uciphymatch = container_of(dlist_get_first(&uciradios), struct uciradiolist, l)))
     {
         dlist_remove(&uciphymatch->l);
         free(uciphymatch->section);

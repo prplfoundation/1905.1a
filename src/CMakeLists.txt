@@ -115,7 +115,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
         target_sources(${libname} PRIVATE
             linux/platform_uci.c
             linux/platform_interfaces_openwrt.c)
-        target_link_libraries(${libname} ubox ubus)
+        target_link_libraries(${libname} ${UBUS} ${UBOX})
     endif (OPENWRT)
 
     add_executable(al_entity linux/al_entity/al_entity_main.c)
