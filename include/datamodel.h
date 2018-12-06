@@ -347,6 +347,12 @@ struct radio {
      */
     bool (*addSTA)(struct radio *radio, struct bssInfo bss_info);
 
+    /** @brief Handler to set the backhaul SSID.
+     *
+     * This function is called for each radio when the (global) backhaul SSID is updated.
+     */
+    bool (*setBackhaulSsid)(struct radio *radio, const struct ssid ssid, const uint8_t *key, size_t key_length);
+
     /** @} */
 };
 
@@ -363,6 +369,10 @@ struct alDevice {
 
     bool is_map_agent; /**< @brief true if this device is a Multi-AP Agent. */
     bool is_map_controller; /**< @brief true if this device is a Multi-AP Controller. */
+
+    struct ssid backhaul_ssid; /**< @brief If len != 0, the single backhaul SSID on this device. */
+    uint8_t     backhaul_key[64]; /**< @brief If backhaul_ssid is set, its WPA2 key. */
+    size_t      backhaul_key_length; /**< @brief Length of backhaul_key. */
 };
 
 /** @brief The local AL device.
@@ -532,6 +542,12 @@ struct alDevice *alDeviceFindFromAnyAddress(const mac_address sender_addr);
 
 /** @brief Find the interface belonging to a specific device. */
 struct interface *alDeviceFindInterface(const struct alDevice *device, const mac_address addr);
+
+/** @brief Update the backhaul SSID on this device.
+ *
+ * If the given ssid/key is different from the already configured one, this will call updateBackhaulSsid on all radios.
+ */
+void localDeviceUpdateBackhaulSsid(const struct ssid ssid, const uint8_t *key, size_t key_length);
 
 /** @brief Find the interface belonging to any device.
  *

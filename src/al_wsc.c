@@ -961,6 +961,10 @@ bool wscProcessM2(struct radio *radio, const uint8_t *m2, uint16_t m2_size)
         {
             bssInfo.backhaul = multi_ap_bBSS;
             bssInfo.backhaul_only = !multi_ap_fBSS;
+            if (multi_ap_bBSS)
+            {
+                localDeviceUpdateBackhaulSsid(bssInfo.ssid, bssInfo.key, bssInfo.key_len);
+            }
             radioAddAp(radio, bssInfo);
         }
     }

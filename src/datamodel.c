@@ -327,6 +327,42 @@ struct interface *alDeviceFindInterface(const struct alDevice *device, const mac
     return NULL;
 }
 
+static bool localDeviceBackhaulSsidChanged(const struct ssid ssid, const uint8_t *key, size_t key_length)
+{
+    if (ssid.length != local_device->backhaul_ssid.length) {
+        return true;
+    }
+    if (memcmp(ssid.ssid, local_device->backhaul_ssid.ssid, ssid.length) != 0) {
+        return true;
+    }
+    if (key_length != local_device->backhaul_key_length) {
+        return true;
+    }
+    if (memcmp(key, local_device->backhaul_key, key_length) != 0) {
+        return true;
+    }
+    return false;
+}
+
+void localDeviceUpdateBackhaulSsid(const struct ssid ssid, const uint8_t *key, size_t key_length)
+{
+    if (localDeviceBackhaulSsidChanged(ssid, key, key_length))
+    {
+        struct radio *radio;
+        dlist_for_each(radio, local_device->radios, l)
+        {
+            if (radio->setBackhaulSsid != NULL) {
+                radio->setBackhaulSsid(radio, ssid, key, key_length);
+            }
+        }
+
+        memcpy(&local_device->backhaul_ssid, &ssid, sizeof(ssid));
+        memcpy(local_device->backhaul_key, key, key_length);
+        local_device->backhaul_key_length = key_length;
+    }
+}
+
+
 struct interface *findDeviceInterface(const mac_address addr)
 {
     struct alDevice *alDevice;
