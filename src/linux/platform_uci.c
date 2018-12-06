@@ -147,6 +147,7 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
     char macstr[18];
     struct blob_buf b;
     void *values;
+    uint8_t multi_ap;
 
     blob_buf_init(&b, 0);
     blobmsg_add_string(&b, "config", "wireless");
@@ -158,8 +159,33 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
     snprintf(macstr, sizeof(macstr), MACSTR, MAC2STR(bssInfo.bssid));
     blobmsg_add_string(&b, "bssid", macstr);
     blobmsg_add_field(&b, BLOBMSG_TYPE_STRING, "ssid", bssInfo.ssid.ssid, bssInfo.ssid.length);
-    blobmsg_add_string(&b, "encryption", "none"); /* @todo set encryption */
-    /* @todo handle backhaul flags */
+    switch (bssInfo.auth_mode) {
+    case auth_mode_open:
+        blobmsg_add_string(&b, "encryption", "none");
+        break;
+    case auth_mode_wpa2:
+        PLATFORM_PRINTF_DEBUG_ERROR("Encryption type WPA2-Enterprise not supported");
+        blob_buf_free(&b);
+        return false;
+    case auth_mode_wpa2psk:
+        blobmsg_add_string(&b, "encryption", "psk2");
+        blobmsg_add_field(&b, BLOBMSG_TYPE_STRING, "key", bssInfo.key, bssInfo.key_len);
+        break;
+    }
+
+    if (ap) {
+        if (bssInfo.backhaul && bssInfo.backhaul_only) {
+            multi_ap = 1;
+        } else if (bssInfo.backhaul) {
+            multi_ap = 3;
+        } else {
+            multi_ap = 2; /* Fronthaul only */
+        }
+    } else {
+        multi_ap = 1; /* STA is always a backhaul STA */
+    }
+    blobmsg_add_u8(&b, "multi_ap", multi_ap);
+
     blobmsg_close_table(&b, values);
     if (!uci_invoke("add", &b)) {
         return false;
