@@ -186,6 +186,11 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
     }
     blobmsg_add_u8(&b, "multi_ap", multi_ap);
 
+    if (ap && !bssInfo.backhaul_only) {
+        /* Fronthaul BSS must have WPS enabled */
+        blobmsg_add_u8(&b, "wps_pushbutton", 1);
+    }
+
     blobmsg_close_table(&b, values);
     if (!uci_invoke("add", &b)) {
         return false;
