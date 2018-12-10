@@ -1401,6 +1401,15 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
                         return PROCESS_CMDU_KO;
                     }
                 }
+
+                // The WSC M2s give us all the BSSes that need to be configured on this radio. So first tear down
+                // all existing ones; wscProcessM2() will create the new ones.
+                for (i = 0; i < radio->configured_bsses.length; i++)
+                {
+                    /* @todo Only tear down multi-AP configured BSSes, not locally configured ones. */
+                    interfaceTearDown(&radio->configured_bsses.data[i]->i);
+                }
+
                 // Process it and apply the configuration to the corresponding
                 // interface.
                 //

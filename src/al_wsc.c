@@ -675,13 +675,8 @@ bool wscProcessM2(struct radio *radio, const uint8_t *m2, uint16_t m2_size)
      */
     if (multi_ap_ie_present && multi_ap_teardown)
     {
-        unsigned i;
         PLATFORM_PRINTF_DEBUG_DETAIL("Multi-AP M2 WSC with tear-down bit set.\n");
-        for (i = 0; i < radio->configured_bsses.length; i++)
-        {
-            /* @todo Only tear down multi-AP configured BSSes, not locally configured ones. */
-            interfaceTearDown(&radio->configured_bsses.data[i]->i);
-        }
+        // All BSSes were already torn down before calling this function, so nothing to do.
         return true;
     }
 
