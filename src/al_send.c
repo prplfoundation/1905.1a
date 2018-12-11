@@ -3339,7 +3339,8 @@ uint8_t send1905APAutoconfigurationWSCM2Packet(const char *interface_name, uint1
     //
     for (i = 0; i < wsc_frames.length; i++)
     {
-        struct wscTLV *wsc_tlv = X1905_TLV_ALLOC(wsc, TLV_TYPE_WSC, NULL);
+        struct wscTLV *wsc_tlv = memalloc(sizeof(struct wscTLV));
+        wsc_tlv->tlv.type = TLV_TYPE_WSC;
         data_message.list_of_TLVs[i] = &wsc_tlv->tlv;
         wsc_tlv->wsc_frame_size = wsc_frames.data[i].m2_size;
         wsc_tlv->wsc_frame      = (uint8_t *)memalloc(wsc_frames.data[i].m2_size);
