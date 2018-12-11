@@ -783,7 +783,7 @@ struct interfaceInfo *PLATFORM_GET_1905_INTERFACE_INFO(const char *interface_nam
         }
         else
         {
-            m->is_secured = 0;
+            m->is_secured = 1;
         }
     }
 
