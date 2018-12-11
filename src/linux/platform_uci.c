@@ -189,6 +189,14 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
     if (ap && !bssInfo.backhaul_only) {
         /* Fronthaul BSS must have WPS enabled */
         blobmsg_add_u8(&b, "wps_pushbutton", 1);
+        if (local_device->backhaul_ssid.length > 0) {
+            blobmsg_add_field(&b, BLOBMSG_TYPE_STRING, "multi_ap_backhaul_ssid",
+                              local_device->backhaul_ssid.ssid, local_device->backhaul_ssid.length);
+            if (local_device->backhaul_key_length > 0) {
+                blobmsg_add_field(&b, BLOBMSG_TYPE_STRING, "multi_ap_backhaul_key",
+                                  local_device->backhaul_key, local_device->backhaul_key_length);
+            }
+        }
     }
 
     blobmsg_close_table(&b, values);
@@ -215,6 +223,52 @@ static bool uci_create_ap(struct radio *radio, struct bssInfo bssInfo)
 static bool uci_create_sta(struct radio *radio, struct bssInfo bssInfo)
 {
     return uci_create_iface(radio, bssInfo, false);
+}
+
+static bool uci_set_backhaul_values(const struct ssid ssid, const uint8_t *key, size_t key_length, const char *multi_ap_val)
+{
+    struct blob_buf b;
+    void *values;
+    void *match;
+
+    blob_buf_init(&b, 0);
+    blobmsg_add_string(&b, "config", "wireless");
+    match = blobmsg_open_table(&b, "match");
+    blobmsg_add_string(&b, "multi_ap", multi_ap_val);
+    blobmsg_close_table(&b, match);
+
+    if (ssid.length > 0) {
+        values = blobmsg_open_table(&b, "values");
+        blobmsg_add_field(&b, BLOBMSG_TYPE_STRING, "multi_ap_backhaul_ssid", ssid.ssid, ssid.length);
+        if (key_length > 0) {
+            blobmsg_add_field(&b, BLOBMSG_TYPE_STRING, "multi_ap_backhaul_key", key, key_length);
+        }
+        blobmsg_close_table(&b, values);
+        return uci_invoke("set", &b);
+    } else {
+        values = blobmsg_open_array(&b, "options");
+        blobmsg_add_string(&b, NULL, "multi_ap_backhaul_ssid");
+        blobmsg_add_string(&b, NULL, "multi_ap_backhaul_key");
+        blobmsg_close_array(&b, values);
+        return uci_invoke("delete", &b);
+    }
+}
+
+static bool uci_set_backhaul_ssid(__attribute__((unused)) struct radio *radio,
+                                  const struct ssid ssid, const uint8_t *key, size_t key_length)
+{
+    bool result;
+
+    /* Instead of iterating over configured_bsses, we just use the UCI match table to set all fronthaul aps.
+     * We need to do that twice, for multi_ap = 2 and multi_ap = 3.
+     *
+     * Note that we do this for all radios, not just for the radio passed as an argument. The function will
+     * anyway be called for all radios.
+     */
+    result = uci_set_backhaul_values(ssid, key, key_length, "2");
+    result = result && uci_set_backhaul_values(ssid, key, key_length, "3");
+    result = result && uci_commit_wireless();
+    return result;
 }
 
 /*
@@ -346,6 +400,7 @@ void uci_register_handlers(void)
             if(!strcmp(radio->name, uciphymatch->phyname)) {
                 radio->addAP = uci_create_ap;
                 radio->addSTA = uci_create_sta;
+                radio->setBackhaulSsid = uci_set_backhaul_ssid;
                 radio->priv = (void *)strdup(uciphymatch->section);
                 PLATFORM_PRINTF_DEBUG_DETAIL("registered UCI wifi-device %s (%s)\n",
                                              uciphymatch->section, uciphymatch->phyname);
