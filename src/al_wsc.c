@@ -532,6 +532,8 @@ bool wscBuildM1(struct radio *radio, const struct wscDeviceData *wsc_device_data
         aux8  = WPS_VERSION;                                              _I1B(&aux8,          &p);
     }
 
+    radio->wsc_info->m1_len = p - radio->wsc_info->m1;
+
     return true;
 }
 
