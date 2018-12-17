@@ -309,7 +309,7 @@ struct radio {
      */
     struct {
         uint8_t   m1[1000]; /**< Buffer for constructing the M1 message. */
-        uint8_t   m1_len;   /**< Used length of @a m1. */
+        uint16_t  m1_len;   /**< Used length of @a m1. */
         uint8_t  *nonce;    /**< Pointer into @a m1 to location of the nonce. Length is 16 bytes. */
         uint8_t  *mac;      /**< Pointer into @a m1 to location of the MAC address. */
         uint8_t  *priv_key; /**< Private key, allocated separately. */
