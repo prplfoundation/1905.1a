@@ -1675,12 +1675,27 @@ void _obtainLocalGenericPhyTLV(struct genericPhyDeviceInformationTypeTLV *generi
                             generic_phy->local_interfaces[generic_phy->local_interfaces_nr].generic_phy_common_data.media_specific_bytes    = NULL;
             }
 
-            memcpy(generic_phy->local_interfaces[generic_phy->local_interfaces_nr].variant_name,                                     x->interface_type_data.other.variant_name, strlen(x->interface_type_data.other.variant_name)+1);
-                            generic_phy->local_interfaces[generic_phy->local_interfaces_nr].generic_phy_description_xml_url_len             = strlen(x->interface_type_data.other.generic_phy_description_xml_url)+1;
+            memset(generic_phy->local_interfaces[generic_phy->local_interfaces_nr].variant_name, 0,
+                   sizeof(generic_phy->local_interfaces[generic_phy->local_interfaces_nr].variant_name));
+            if (x->interface_type_data.other.variant_name)
+            {
+                memcpy(generic_phy->local_interfaces[generic_phy->local_interfaces_nr].variant_name,
+                       x->interface_type_data.other.variant_name, strlen(x->interface_type_data.other.variant_name)+1);
+            }
 
-                            generic_phy->local_interfaces[generic_phy->local_interfaces_nr].generic_phy_description_xml_url                 = memalloc(generic_phy->local_interfaces[generic_phy->local_interfaces_nr].generic_phy_description_xml_url_len);
-            memcpy(generic_phy->local_interfaces[generic_phy->local_interfaces_nr].generic_phy_description_xml_url,                  x->interface_type_data.other.generic_phy_description_xml_url, generic_phy->local_interfaces[generic_phy->local_interfaces_nr].generic_phy_description_xml_url_len);
+            if (x->interface_type_data.other.generic_phy_description_xml_url != NULL)
+            {
+                generic_phy->local_interfaces[generic_phy->local_interfaces_nr].generic_phy_description_xml_url_len             =
+                        strlen(x->interface_type_data.other.generic_phy_description_xml_url)+1;
 
+                generic_phy->local_interfaces[generic_phy->local_interfaces_nr].generic_phy_description_xml_url                 =
+                        memalloc(generic_phy->local_interfaces[generic_phy->local_interfaces_nr].generic_phy_description_xml_url_len);
+                memcpy(generic_phy->local_interfaces[generic_phy->local_interfaces_nr].generic_phy_description_xml_url,
+                        x->interface_type_data.other.generic_phy_description_xml_url, generic_phy->local_interfaces[generic_phy->local_interfaces_nr].generic_phy_description_xml_url_len);
+            } else {
+                generic_phy->local_interfaces[generic_phy->local_interfaces_nr].generic_phy_description_xml_url_len = 0;
+                generic_phy->local_interfaces[generic_phy->local_interfaces_nr].generic_phy_description_xml_url = NULL;
+            }
             generic_phy->local_interfaces_nr++;
         }
         free_1905_INTERFACE_INFO(x);
