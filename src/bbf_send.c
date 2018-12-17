@@ -857,6 +857,10 @@ void CBKUpdateBBFExtendedInfo(struct vendorSpecificTLV **extensions, uint8_t nr,
     //
     dm_extensions = DMextensionsGet(al_mac_address, &dm_extensions_nr);
 
+    if (dm_extensions == NULL) {
+        return;
+    }
+
     // Update the extended local info
     //
     // The 1905 core stack simply provides a pointer to this 'extended info'
