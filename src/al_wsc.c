@@ -921,7 +921,7 @@ bool wscProcessM2(struct radio *radio, const uint8_t *m2, uint16_t m2_size)
         switch (auth_type)
         {
         case auth_mode_open:
-            if (encryption_type != IEEE80211_ENCRYPTION_MODE_NONE)
+            if (encryption_type != WPS_ENCR_NONE)
             {
                 PLATFORM_PRINTF_DEBUG_WARNING("Invalid encryption type %u for open mode\n", encryption_type);
                 return false;
@@ -929,7 +929,7 @@ bool wscProcessM2(struct radio *radio, const uint8_t *m2, uint16_t m2_size)
             break;
         case auth_mode_wpa2:
         case auth_mode_wpa2psk:
-            if (encryption_type != IEEE80211_ENCRYPTION_MODE_AES)
+            if (encryption_type != WPS_ENCR_AES)
             {
                 PLATFORM_PRINTF_DEBUG_WARNING("Invalid encryption type %u for WPA2 mode\n", encryption_type);
                 return false;
