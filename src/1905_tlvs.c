@@ -1439,11 +1439,19 @@ struct tlv *parse_1905_TLV_from_packet(const uint8_t *packet_stream)
                         ret->local_interfaces[i].generic_phy_description_xml_url = (char *)memalloc(ret->local_interfaces[i].generic_phy_description_xml_url_len);
                         _EnB(&p, ret->local_interfaces[i].generic_phy_description_xml_url, ret->local_interfaces[i].generic_phy_description_xml_url_len);
                     }
+                    else
+                    {
+                        ret->local_interfaces[i].generic_phy_description_xml_url = NULL;
+                    }
 
                     if (ret->local_interfaces[i].generic_phy_common_data.media_specific_bytes_nr > 0)
                     {
                         ret->local_interfaces[i].generic_phy_common_data.media_specific_bytes = (uint8_t *)memalloc(ret->local_interfaces[i].generic_phy_common_data.media_specific_bytes_nr);
                         _EnB(&p, ret->local_interfaces[i].generic_phy_common_data.media_specific_bytes, ret->local_interfaces[i].generic_phy_common_data.media_specific_bytes_nr);
+                    }
+                    else
+                    {
+                        ret->local_interfaces[i].generic_phy_common_data.media_specific_bytes = NULL;
                     }
                 }
             }
