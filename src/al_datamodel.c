@@ -228,6 +228,7 @@ void DMalMacSet(uint8_t *al_mac_address)
 {
     assert(local_device == NULL);
     local_device = alDeviceAlloc(al_mac_address);
+    local_device->configured = false;
 
     return;
 }

@@ -320,6 +320,9 @@ struct radio {
      */
     struct wscDeviceData device_data;
 
+    /** @brief Keep track if radio has been configured already. Only relevant for local device. */
+    bool configured;
+
     /** @brief Pointer to driver private data.
      */
     void *priv;
@@ -369,6 +372,7 @@ struct alDevice {
 
     bool is_map_agent; /**< @brief true if this device is a Multi-AP Agent. */
     bool is_map_controller; /**< @brief true if this device is a Multi-AP Controller. */
+    bool configured; /**< @brief true if device has been configured, false if AP-Autoconfig needs to be done. */
 
     struct ssid backhaul_ssid; /**< @brief If len != 0, the single backhaul SSID on this device. */
     uint8_t     backhaul_key[64]; /**< @brief If backhaul_ssid is set, its WPA2 key. */

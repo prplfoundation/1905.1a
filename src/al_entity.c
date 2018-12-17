@@ -762,134 +762,51 @@ void _checkForwarding(uint8_t *receiving_interface_addr, uint8_t *destination_ma
 //
 void _triggerAPSearchProcess(void)
 {
-    uint8_t  i;
     uint16_t mid;
+    uint8_t unconfigured_ap_band;
 
-    char **ifs_names;
-    uint8_t  ifs_nr;
+    struct radio *radio;
 
-    uint8_t unconfigured_ap_exists = 0;
-    uint8_t unconfigured_ap_band   = 0;
-
-    ifs_names = PLATFORM_GET_LIST_OF_1905_INTERFACES(&ifs_nr);
-
-    for (i=0; i<ifs_nr; i++)
+    if (registrarIsLocal())
     {
-        struct interfaceInfo *x;
-
-        x = PLATFORM_GET_1905_INTERFACE_INFO(ifs_names[i]);
-        if (NULL == x)
-        {
-            PLATFORM_PRINTF_DEBUG_WARNING("Could not retrieve info of interface %s\n", ifs_names[i]);
-            continue;
-        }
-
-        if (
-            (INTERFACE_TYPE_IEEE_802_11B_2_4_GHZ == x->interface_type ||
-             INTERFACE_TYPE_IEEE_802_11G_2_4_GHZ == x->interface_type ||
-             INTERFACE_TYPE_IEEE_802_11A_5_GHZ   == x->interface_type ||
-             INTERFACE_TYPE_IEEE_802_11N_2_4_GHZ == x->interface_type ||
-             INTERFACE_TYPE_IEEE_802_11N_5_GHZ   == x->interface_type ||
-             INTERFACE_TYPE_IEEE_802_11AC_5_GHZ  == x->interface_type ||
-             INTERFACE_TYPE_IEEE_802_11AD_60_GHZ == x->interface_type)   &&
-            IEEE80211_ROLE_AP == x->interface_type_data.ieee80211.role   &&
-            (0x0 == x->interface_type_data.ieee80211.bssid[0] &&
-             0x0 == x->interface_type_data.ieee80211.bssid[1] &&
-             0x0 == x->interface_type_data.ieee80211.bssid[2] &&
-             0x0 == x->interface_type_data.ieee80211.bssid[3] &&
-             0x0 == x->interface_type_data.ieee80211.bssid[4] &&
-             0x0 == x->interface_type_data.ieee80211.bssid[5])
-           )
-        {
-           unconfigured_ap_exists = 1;
-
-           if (
-                INTERFACE_TYPE_IEEE_802_11B_2_4_GHZ == x->interface_type ||
-                INTERFACE_TYPE_IEEE_802_11G_2_4_GHZ == x->interface_type ||
-                INTERFACE_TYPE_IEEE_802_11N_2_4_GHZ == x->interface_type
-              )
-           {
-               unconfigured_ap_band = IEEE80211_FREQUENCY_BAND_2_4_GHZ;
-           }
-           else if (
-                INTERFACE_TYPE_IEEE_802_11A_5_GHZ  == x->interface_type ||
-                INTERFACE_TYPE_IEEE_802_11N_5_GHZ  == x->interface_type ||
-                INTERFACE_TYPE_IEEE_802_11AC_5_GHZ == x->interface_type
-                )
-           {
-               unconfigured_ap_band = IEEE80211_FREQUENCY_BAND_5_GHZ;
-           }
-           else if (
-                INTERFACE_TYPE_IEEE_802_11AD_60_GHZ == x->interface_type
-                )
-           {
-               unconfigured_ap_band = IEEE80211_FREQUENCY_BAND_60_GHZ;
-           }
-           else
-           {
-               PLATFORM_PRINTF_DEBUG_WARNING("Unknown interface type %d\n", x->interface_type);
-               unconfigured_ap_exists = 0;
-
-               free_1905_INTERFACE_INFO(x);
-               continue;
-           }
-
-           break;
-        }
-
-        free_1905_INTERFACE_INFO(x);
+        PLATFORM_PRINTF_DEBUG_DETAIL("Skipping AP Search on registrar device\n");
+        return;
     }
 
-    if (1 == unconfigured_ap_exists)
+    dlist_for_each(radio, local_device->radios, l)
     {
-        mid = getNextMid();
-        for (i=0; i<ifs_nr; i++)
+        if (!radio->configured)
         {
-            uint8_t authenticated;
-            uint8_t power_state;
-
-            struct interfaceInfo *x;
-
-            x = PLATFORM_GET_1905_INTERFACE_INFO(ifs_names[i]);
-            if (NULL == x)
+            mid = getNextMid();
+            /* @todo we always use the first band, but we should try all */
+            if (radio->bands.length == 0)
             {
-                PLATFORM_PRINTF_DEBUG_WARNING("Could not retrieve info of interface %s\n", ifs_names[i]);
-                authenticated = 0;
-                power_state   = INTERFACE_POWER_STATE_OFF;
-            }
-            else
-            {
-                authenticated = x->is_secured;
-                power_state   = x->power_state;
-            }
-
-            if (
-                (0 == authenticated                                                                     ) ||
-                ((power_state != INTERFACE_POWER_STATE_ON) && (power_state!= INTERFACE_POWER_STATE_SAVE))
-               )
-            {
-                // Do not send the message on this interface
-                //
-                if (NULL != x)
-                {
-                    free_1905_INTERFACE_INFO(x);
-                }
+                PLATFORM_PRINTF_DEBUG_ERROR("Radio %s has no bands\n", radio->name);
                 continue;
             }
-
-            if (NULL != x)
+            switch(radio->bands.data[0]->id)
             {
-                free_1905_INTERFACE_INFO(x);
+            case BAND_2GHZ:
+                unconfigured_ap_band = IEEE80211_FREQUENCY_BAND_2_4_GHZ;
+                break;
+            case BAND_5GHZ:
+                unconfigured_ap_band = IEEE80211_FREQUENCY_BAND_5_GHZ;
+                break;
+            case BAND_60GHZ:
+                unconfigured_ap_band = IEEE80211_FREQUENCY_BAND_60_GHZ;
+                break;
             }
-
-            if (0 == send1905APAutoconfigurationSearchPacket(ifs_names[i], mid, unconfigured_ap_band))
+            if (0 == send1905APAutoconfigurationSearchPacket(mid, unconfigured_ap_band))
             {
                 PLATFORM_PRINTF_DEBUG_WARNING("Could not send 1905 AP-autoconfiguration search message\n");
             }
+            /* Only send one search; next one will be tried again after completely handling this one. */
+            return;
         }
     }
 
-    free_LIST_OF_1905_INTERFACES(ifs_names, ifs_nr);
+    /* All radios configured -> whole system is configured */
+    /* @todo mark the system as configured */
 }
 
 

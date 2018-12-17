@@ -2265,6 +2265,75 @@ uint8_t send1905RawPacket(const char *interface_name, uint16_t mid, const uint8_
     return 1;
 }
 
+uint8_t send1905Multicast(uint16_t mid, struct CMDU *cmdu)
+{
+    uint8_t  **streams;
+    uint16_t  *streams_lens;
+    struct interface *interface;
+
+    unsigned x;
+
+    // Insert protocol extensions to the CMDU, which has been already built at
+    // this point.
+    //
+    send1905CmduExtensions(cmdu);
+
+    PLATFORM_PRINTF_DEBUG_DETAIL("Contents of CMDU to send:\n");
+    visit_1905_CMDU_structure(cmdu, print_callback, PLATFORM_PRINTF_DEBUG_DETAIL, "");
+
+    streams = forge_1905_CMDU_from_structure(cmdu, &streams_lens);
+    if (NULL == streams)
+    {
+        // Could not forge the packet. Error?
+        //
+        PLATFORM_PRINTF_DEBUG_WARNING("forge_1905_CMDU_from_structure() failed!\n");
+        return 0;
+    }
+
+    // Free previously allocated CMDU extensions (no longer needed)
+    //
+    free1905CmduExtensions(cmdu);
+
+    if (NULL == streams[0])
+    {
+        // Could not forge the packet. Error?
+        //
+        PLATFORM_PRINTF_DEBUG_WARNING("forge_1905_CMDU_from_structure() returned 0 streams!\n");
+
+        free_1905_CMDU_packets(streams);
+        free(streams_lens);
+        return 0;
+    }
+
+    dlist_for_each(interface, local_device->interfaces, l)
+    {
+        /* @todo check if interface is secured */
+        if (interface->power_state != interface_power_state_off)
+        {
+            for (x = 0; streams[x] != NULL; x++)
+            {
+                PLATFORM_PRINTF_DEBUG_DETAIL("Sending 1905 message on interface %s, MID %d, fragment %d\n",
+                                             interface->name, mid, x+1);
+                if (0 == PLATFORM_SEND_RAW_PACKET(interface->name,
+                                                  MCAST_1905,
+                                                  DMalMacGet(),
+                                                  ETHERTYPE_1905,
+                                                  streams[x],
+                                                  streams_lens[x]))
+                {
+                    PLATFORM_PRINTF_DEBUG_ERROR("Packet could not be sent!\n");
+                }
+            }
+        }
+    }
+
+    free_1905_CMDU_packets(streams);
+    free(streams_lens);
+
+    return 1;
+}
+
+
 uint8_t send1905RawALME(uint8_t alme_client_id, uint8_t *alme)
 {
     uint8_t    *packet_out;
@@ -3126,7 +3195,7 @@ uint8_t send1905PushButtonJoinNotificationPacket(const char *interface_name, uin
     return ret;
 }
 
-uint8_t send1905APAutoconfigurationSearchPacket(const char *interface_name, uint16_t mid, uint8_t freq_band)
+uint8_t send1905APAutoconfigurationSearchPacket(uint16_t mid, uint8_t freq_band)
 {
     // The "AP-autoconfiguration search" message is a CMDU with three TLVs:
     //   - One AL MAC address type TLV
@@ -3143,7 +3212,7 @@ uint8_t send1905APAutoconfigurationSearchPacket(const char *interface_name, uint
     struct supportedServiceTLV    *supported_service_tlv;
     struct supportedServiceTLV    *searched_service_tlv;
 
-    PLATFORM_PRINTF_DEBUG_INFO("--> CMDU_TYPE_AP_AUTOCONFIGURATION_SEARCH (%s)\n", interface_name);
+    PLATFORM_PRINTF_DEBUG_INFO("--> CMDU_TYPE_AP_AUTOCONFIGURATION_SEARCH\n");
 
     // Fill the searched role TLV
     //
@@ -3175,7 +3244,7 @@ uint8_t send1905APAutoconfigurationSearchPacket(const char *interface_name, uint
     search_message.list_of_TLVs[4] = &searched_service_tlv->tlv;
     search_message.list_of_TLVs[5] = NULL;
 
-    if (0 == send1905RawPacket(interface_name, mid, mcast_address, &search_message))
+    if (0 == send1905Multicast(mid, &search_message))
     {
         PLATFORM_PRINTF_DEBUG_WARNING("Could not send packet\n");
         ret = 0;

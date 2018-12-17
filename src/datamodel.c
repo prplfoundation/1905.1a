@@ -120,6 +120,7 @@ struct radio*   radioAllocLocal(const mac_address mac, const char *name, int ind
     struct radio *r = radioAlloc(local_device, mac);
     strcpy(r->name, name);
     r->index = index;
+    r->configured = local_device->configured;
     return r;
 }
 

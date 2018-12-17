@@ -85,6 +85,16 @@
 //
 uint8_t send1905RawPacket(const char *interface_name, uint16_t mid, const uint8_t *dst_mac_address, struct CMDU *cmdu);
 
+// This function sends a "1905 packet" (the one represented by the provided
+// 'cmdu' structure) on all interfaces that are secured and not off.
+//
+// 'mid' is the "Message identifier" value we want this packet to contain. Its
+// value must be calculated according to what is said on "Section 7.8"
+//
+// Return '0' if there was a problem, '1' otherwise.
+//
+uint8_t send1905Multicast(uint16_t mid, struct CMDU *cmdu);
+
 // This function sends a "1905 ALME reply" (the one represented by the provided
 // 'out' pointer, which must point to a "struct *ALME" structure).
 //
@@ -322,7 +332,7 @@ uint8_t send1905PushButtonJoinNotificationPacket(const char *interface_name, uin
 //
 // Return "0" if a problem was found. "1" otherwise.
 //
-uint8_t send1905APAutoconfigurationSearchPacket(const char *interface_name, uint16_t mid, uint8_t freq_band);
+uint8_t send1905APAutoconfigurationSearchPacket(uint16_t mid, uint8_t freq_band);
 
 // This function sends a "AP-autoconfiguration response packet" on the provided
 // interface.

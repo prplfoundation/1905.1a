@@ -1424,12 +1424,8 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
                 // thus, re-trigger the AP discovery process, just in case.
                 // Note that this function will do nothing if there are no
                 // unconfigured AP interfaces remaining.
-                //
-                // TODO: Uncomment this once "wscProcessM2()" is capable of
-                // actually configuring the AP so that it does not appear as
-                // "unconfigured" anymore (or else we will enter an infinite
-                // loop!)
-                //return PROCESS_CMDU_OK_TRIGGER_AP_SEARCH;
+                radio->configured = true;
+                return PROCESS_CMDU_OK_TRIGGER_AP_SEARCH;
             }
             else if (WSC_TYPE_M1 == wsc_type)
             {
