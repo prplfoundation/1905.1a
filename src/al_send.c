@@ -3371,6 +3371,8 @@ uint8_t send1905APAutoconfigurationWSCM2Packet(const char *interface_name, uint1
         data_message.list_of_TLVs[num_tlvs - 1] = &apRadioIdentifier->tlv;
     }
 
+    data_message.list_of_TLVs[num_tlvs] = NULL;
+
     if (0 == send1905RawPacket(interface_name, mid, destination_al_mac_address, &data_message))
     {
         PLATFORM_PRINTF_DEBUG_WARNING("Could not send packet\n");
