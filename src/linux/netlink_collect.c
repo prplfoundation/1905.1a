@@ -253,7 +253,7 @@ static int populate_radios_from_dev(const char *dev)
 
     sprintf(basedir, "/sys/class/net/%s/phy80211", dev);
 
-    if ( phy_lookup(basedir, name, &mac, &index) <= 0 )
+    if ( phy_lookup(basedir, name, mac, &index) <= 0 )
         return -1;
 
     radioAllocLocal(mac, name, index);
@@ -282,7 +282,7 @@ static int populate_radios_from_sysfs(void)
 
         sprintf(basedir, "%s/%s", sysfs_ieee80211_phys, f->d_name);
 
-        if ( phy_lookup(basedir, name, &mac, &index) <= 0 ) {
+        if ( phy_lookup(basedir, name, mac, &index) <= 0 ) {
             ret = -1;
             break;
         }

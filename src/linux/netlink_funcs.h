@@ -85,7 +85,7 @@ struct nl80211_state {
  *
  *  @return >0:success, 0:not found, <0:error
  */
-extern int  phy_lookup(const char *basedir, char *name, mac_address *mac, int *index);
+extern int  phy_lookup(const char *basedir, char *name, mac_address mac, int *index);
 
 /** @brief  Add all the local radios found with their collected datas into global ::local_device
  *  @return >=0:Number of radios processed/found, <0:error

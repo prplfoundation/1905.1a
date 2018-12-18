@@ -313,7 +313,7 @@ static void uci_get_interfaces(mac_address *al_mac_address)
         ubus_invoke(ctx, id, "status", req.head, network_device_cb, &macstr, 3000);
 
     fprintf(stderr, "got macaddr %s\n", macstr);
-    asciiToMac(macstr, al_mac_address);
+    asciiToMac(macstr, *al_mac_address);
 
 uci_get_interfaces_out:
     ubus_free(ctx);

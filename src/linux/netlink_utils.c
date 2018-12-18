@@ -87,7 +87,7 @@
 #include "nl80211.h"
 #include "hlist.h"
 
-int phy_lookup(const char *basedir, char *name, mac_address *mac, int *index)
+int phy_lookup(const char *basedir, char *name, mac_address mac, int *index)
 {
     char    buf[128];
     int     fd, n;

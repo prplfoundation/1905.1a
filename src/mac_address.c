@@ -62,12 +62,14 @@
 
 #include "hlist.h"
 
-mac_address * asciiToMac(const char *str, mac_address *addr)
+void asciiToMac(const char *str, mac_address addr)
 {
     int i = 0;
 
-    if ( ! str )
-        return memset(addr, 0, sizeof(mac_address));
+    if ( ! str ) {
+        memset(addr, 0, sizeof(mac_address));
+        return;
+    }
 
     while ( 0x00 != *str && i < 6 ) {
         uint8_t byte = 0;
@@ -81,11 +83,10 @@ mac_address * asciiToMac(const char *str, mac_address *addr)
 
             str++;
         }
-        (*addr)[i] = byte;
+        addr[i] = byte;
         i++;
         if ( ! *str )
             break;
         str++;
     }
-    return addr;
 }

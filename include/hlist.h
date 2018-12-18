@@ -99,11 +99,10 @@ typedef uint8_t mac_address[6];
  *  six bytes array (example: {0x0a, 0xfa, 0x41, 0xa3, 0xff, 0x40})
  *
  *  @pre        @a string must be valid (case insensitive) or NULL
- *  @return     Pointer to the output mac_address
  */
-extern mac_address *    asciiToMac(
+extern void     asciiToMac(
                             const char *string, /**< Input string (must be valid, can be NULL) */
-                            mac_address *mac    /**< Output mac_address */
+                            mac_address mac     /**< Output mac_address */
                         );
 
 /** @} */
