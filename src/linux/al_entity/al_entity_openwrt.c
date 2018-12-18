@@ -65,6 +65,7 @@
 #include "../../al.h"                                  // start1905AL
 
 #include <datamodel.h>
+#include "../platform_uci.h"
 #include "../../al_datamodel.h"
 
 #include <stdio.h>   // printf
@@ -280,6 +281,9 @@ int main(int argc, char *argv[])
         PLATFORM_PRINTF_DEBUG_ERROR("Failed to collect radios from netlink\n");
         return AL_ERROR_OS;
     }
+
+    // Register UCI as the driver for local radios.
+    uci_register_handlers();
 
     // Collect interfaces
     PLATFORM_PRINTF_DEBUG_DETAIL("Retrieving list of local interfaces...\n");

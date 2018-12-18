@@ -118,7 +118,12 @@ if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
         target_link_libraries(${libname} ${UBUS} ${UBOX})
     endif (OPENWRT)
 
-    add_executable(al_entity linux/al_entity/al_entity_main.c)
+    if (OPENWRT)
+        add_executable(al_entity linux/al_entity/al_entity_openwrt.c)
+    else (OPENWRT)
+        add_executable(al_entity linux/al_entity/al_entity_main.c)
+    endif (OPENWRT)
+
     target_link_libraries(al_entity ${libname} OpenSSL::Crypto Threads::Threads ${NL3_LIBRARIES})
     if (LIBRT)
         target_link_libraries(al_entity rt)
