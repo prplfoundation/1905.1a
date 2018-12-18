@@ -84,9 +84,6 @@
 #include "platform_interfaces.h"
 #include "platform_os.h"
 #include "platform_alme_server.h"
-#include "linux/platform_uci.h"
-
-#include "linux/netlink_funcs.h"
 
 #include <datamodel.h>
 
@@ -814,140 +811,13 @@ void _triggerAPSearchProcess(void)
 // Public functions
 ////////////////////////////////////////////////////////////////////////////////
 
-uint8_t start1905AL(uint8_t *al_mac_address, uint8_t map_whole_network_flag, char *registrar_interface)
+uint8_t start1905AL()
 {
     uint8_t   queue_id;
     uint8_t  *queue_message;
 
     uint8_t i;
     struct interface *interface;
-
-    // Initialize platform-specific code
-    //
-    if (0 == PLATFORM_INIT())
-    {
-        PLATFORM_PRINTF_DEBUG_ERROR("Failed to initialize platform\n");
-        return AL_ERROR_OS;
-    }
-
-    if (NULL == al_mac_address)
-    {
-        // Invalid arguments
-        //
-        PLATFORM_PRINTF_DEBUG_ERROR("NULL AL MAC address not allowed\n");
-        return AL_ERROR_INVALID_ARGUMENTS;
-    }
-
-    // Insert the provided AL MAC address into the database
-    //
-    DMinit();
-    DMalMacSet(al_mac_address);
-    DMmapWholeNetworkSet(map_whole_network_flag);
-    PLATFORM_PRINTF_DEBUG_DETAIL("Starting AL entity (AL MAC = %02x:%02x:%02x:%02x:%02x:%02x). Map whole network = %d...\n",
-                                al_mac_address[0],
-                                al_mac_address[1],
-                                al_mac_address[2],
-                                al_mac_address[3],
-                                al_mac_address[4],
-                                al_mac_address[5],
-                                map_whole_network_flag);
-
-    // Collect all the informations about local radios throught netlink
-    //
-    PLATFORM_PRINTF_DEBUG_DETAIL("Retrieving list of local radios throught netlink...\n");
-    if (0 > netlink_collect_local_infos())
-    {
-        PLATFORM_PRINTF_DEBUG_ERROR("Failed to collect radios from netlink\n");
-        return AL_ERROR_OS;
-    }
-
-#ifdef OPENWRT
-    // Register UCI as the driver for local radios.
-    uci_register_handlers();
-#endif
-
-    // Collect interfaces
-    PLATFORM_PRINTF_DEBUG_DETAIL("Retrieving list of local interfaces...\n");
-    createLocalInterfaces();
-
-    // If an interface is the designated 1905 network registrar
-    // interface, save its MAC address to the database
-    //
-    if (NULL != registrar_interface)
-    {
-        struct interfaceWifi *interface_wifi;
-
-        interface = findLocalInterface(registrar_interface);
-
-        if (interface == NULL)
-        {
-            PLATFORM_PRINTF_DEBUG_ERROR("Could not find registrar interface %s\n", registrar_interface);
-        }
-        else if (interface->type != interface_type_wifi)
-        {
-            PLATFORM_PRINTF_DEBUG_ERROR("Registrar interface %s is not a Wifi interface\n", registrar_interface);
-        }
-        else
-        {
-            struct interfaceInfo *x;
-
-            interface_wifi = container_of(interface, struct interfaceWifi, i);
-            x = PLATFORM_GET_1905_INTERFACE_INFO(interface->name);
-            /* x cannot be NULL because the interface exists. */
-
-            registrar.d = local_device;
-            /* For now, it is always a MAP Controller. */
-            registrar.is_map = true;
-
-            /* Copy interface info into WSC info.
-             * @todo this should come from a config file.
-             * @todo Support multiple bands.
-             */
-            struct wscRegistrarInfo *wsc_info = zmemalloc(sizeof(struct wscRegistrarInfo));
-            memcpy(&wsc_info->bss_info, &interface_wifi->bssInfo, sizeof(wsc_info->bss_info));
-            strncpy(wsc_info->device_data.device_name, x->device_name, sizeof(wsc_info->device_data.device_name) - 1);
-            strncpy(wsc_info->device_data.manufacturer_name, x->manufacturer_name, sizeof(wsc_info->device_data.manufacturer_name) - 1);
-            strncpy(wsc_info->device_data.model_name, x->model_name, sizeof(wsc_info->device_data.model_name) - 1);
-            strncpy(wsc_info->device_data.model_number, x->model_number, sizeof(wsc_info->device_data.model_number) - 1);
-            strncpy(wsc_info->device_data.serial_number, x->serial_number, sizeof(wsc_info->device_data.serial_number) - 1);
-            /* @todo support UUID; for now its 0. */
-            switch(x->interface_type)
-            {
-                case INTERFACE_TYPE_IEEE_802_11B_2_4_GHZ:
-                case INTERFACE_TYPE_IEEE_802_11G_2_4_GHZ:
-                case INTERFACE_TYPE_IEEE_802_11N_2_4_GHZ:
-                    wsc_info->rf_bands = WPS_RF_24GHZ;
-                    break;
-
-                case INTERFACE_TYPE_IEEE_802_11A_5_GHZ:
-                case INTERFACE_TYPE_IEEE_802_11N_5_GHZ:
-                case INTERFACE_TYPE_IEEE_802_11AC_5_GHZ:
-                    wsc_info->rf_bands = WPS_RF_50GHZ;
-                    break;
-
-                case INTERFACE_TYPE_IEEE_802_11AD_60_GHZ:
-                    wsc_info->rf_bands = WPS_RF_60GHZ;
-                    break;
-
-                case INTERFACE_TYPE_IEEE_802_11AF_GHZ:
-                    PLATFORM_PRINTF_DEBUG_ERROR("Interface %s is 802.11af which is not supported by WSC!\n",x->name);
-
-                    free_1905_INTERFACE_INFO(x);
-                    return AL_ERROR_INTERFACE_ERROR;
-
-                default:
-                    PLATFORM_PRINTF_DEBUG_ERROR("Interface %s is not a 802.11 interface and thus cannot act as a registrar!\n",x->name);
-
-                    free(wsc_info);
-                    free_1905_INTERFACE_INFO(x);
-                    return AL_ERROR_INTERFACE_ERROR;
-
-            }
-
-            registrarAddWsc(wsc_info);
-            free_1905_INTERFACE_INFO(x);
-        }
-    }
 
     // Create a queue that will later be used by the platform code to notify us
     // when certain types of "events" take place

@@ -73,24 +73,7 @@
 //   1. Create a thread
 //   2. Make that thread execute this function
 //
-// This function takes the following arguments:
-//
-//   - 'al_mac_address': a six bytes array containing the AL MAC address of the
-//     local host.
-//   - 'map_whole_network_flag': If set to '1', the AL entity will map the whole
-//     network (instead of just its direct neighbors). This takes more memory
-//     and generates much more packets on the network, however the TR069
-//     datamodel of this particular node will contain all the information
-//     defined in the standard.
-//     I would personally *only* set this flag to '1' in *one* of the network
-//     nodes.
-//   - 'registrar_interface' is the name of the local interface (ex: "wlan0")
-//     that will act as a registrar in the 1905 network.
-//     Note that *only one registrar* should be present in the 1905 network,
-//     thus this parameter should:
-//       a) Be set to NULL in all those ALs that are not registrars.
-//       b) Be set to the name of a local 802.11 interface (ex: "wlan0") in the
-//          AL that will act as a registrar.
+// Before calling this function, the platform and al_datamodel must have been initialized.
 //
 // It returns when:
 //
@@ -122,7 +105,7 @@
 //
 //   - The HLE requested the AL service to stop. In this case it will return '0'
 //
-uint8_t start1905AL(uint8_t *al_mac_address, uint8_t map_whole_network_flag, char *registrar_interface);
+uint8_t start1905AL(void);
 
 
 #endif
