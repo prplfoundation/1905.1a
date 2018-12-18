@@ -281,7 +281,7 @@ static void network_device_cb(struct ubus_request *req, int type, struct blob_at
 
 static const char netobj_prefix[] = "network.interface.";
 
-static void uci_get_interfaces(mac_address *al_mac_address)
+static void uci_get_interfaces()
 {
     struct ubus_context *ctx = ubus_connect(NULL);
     uint32_t id;
@@ -313,9 +313,92 @@ static void uci_get_interfaces(mac_address *al_mac_address)
         ubus_invoke(ctx, id, "status", req.head, network_device_cb, &macstr, 3000);
 
     fprintf(stderr, "got macaddr %s\n", macstr);
-    asciiToMac(macstr, *al_mac_address);
 
 uci_get_interfaces_out:
+    ubus_free(ctx);
+}
+
+/*
+ * policy for uci get prplmesh
+ */
+enum {
+    PRPLMESH_PORT,
+    PRPLMESH_AL_ADDR,
+    PRPLMESH_WHOLE_NETWORK,
+    PRPLMESH_MAX,
+};
+
+
+static const struct blobmsg_policy prplmesh_policy[PRPLMESH_MAX] = {
+    [PRPLMESH_PORT] = { .name = "port", .type = BLOBMSG_TYPE_INT16 },
+    [PRPLMESH_AL_ADDR] = { .name = "al_address", .type = BLOBMSG_TYPE_STRING },
+    [PRPLMESH_WHOLE_NETWORK] = { .name = "whole_network", .type = BLOBMSG_TYPE_BOOL },
+};
+
+/*
+ * called by uci get prplmesh call
+ */
+static void prplmesh_config_cb(struct ubus_request *req, int type, struct blob_attr *msg)
+{
+    struct blob_attr *tb[PRPLMESH_MAX];
+    char *al_mac_str;
+    mac_address al_mac_address;
+    bool map_whole_network;
+    uint16_t alme_port_number;
+
+    blobmsg_parse(prplmesh_policy, PRPLMESH_MAX, tb, blob_data(msg), blob_len(msg));
+
+    if (!tb[PRPLMESH_PORT]) {
+        fprintf(stderr, "error: AL MAC address not set in UCI.\n");
+        exit(1);
+    }
+    al_mac_str = blobmsg_get_string(tb[PRPLMESH_PORT]);
+    asciiToMac(al_mac_str, al_mac_address);
+    DMalMacSet(al_mac_address);
+
+    if (tb[PRPLMESH_WHOLE_NETWORK]) {
+        map_whole_network = blobmsg_get_bool(tb[PRPLMESH_WHOLE_NETWORK]);
+    } else {
+        map_whole_network = false;
+    }
+    DMmapWholeNetworkSet(map_whole_network);
+
+    if (tb[PRPLMESH_PORT]) {
+        alme_port_number = blobmsg_get_u16(tb[PRPLMESH_PORT]);
+    } else {
+        alme_port_number = DEFAULT_ALME_SERVER_PORT;
+    }
+    almeServerPortSet(alme_port_number);
+
+    PLATFORM_PRINTF_DEBUG_DETAIL("Starting AL entity (AL MAC = %02x:%02x:%02x:%02x:%02x:%02x). Map whole network = %d...\n",
+                                al_mac_address[0],
+                                al_mac_address[1],
+                                al_mac_address[2],
+                                al_mac_address[3],
+                                al_mac_address[4],
+                                al_mac_address[5],
+                                map_whole_network);
+}
+
+static void uci_get_prplmesh_config()
+{
+    struct ubus_context *ctx = ubus_connect(NULL);
+    uint32_t id;
+    struct blob_buf req = {0,};
+
+    if (!ctx) {
+        fprintf(stderr, "failed to connect to ubus.\n");
+        return;
+    }
+
+    blob_buf_init(&req, 0);
+    blobmsg_add_string(&req, "config", "prplmesh");
+    if (ubus_lookup_id(ctx, "uci", &id) ||
+        ubus_invoke(ctx, id, "get", req.head, prplmesh_config_cb, NULL, 3000))
+        goto err_out;
+
+err_out:
+    blob_buf_free(&req);
     ubus_free(ctx);
 }
 
@@ -323,12 +406,9 @@ static void _printUsage(char *program_name)
 {
     printf("AL entity (build %s)\n", _BUILD_NUMBER_);
     printf("\n");
-    printf("Usage: %s [-w] [-r <registrar_interface>] [-v] [-p <alme_port_number>]\n", program_name);
+    printf("Usage: %s [-r <registrar_interface>] [-v]\n", program_name);
     printf("\n");
     printf("  ...where:\n");
-    printf("       '-w', if present, will instruct the AL entity to map the whole network (instead of\n");
-    printf("       just its local neighbors)\n");
-    printf("\n");
     printf("       '-r', if present, will tell the AL entity that '<registrar_interface>' is the name\n");
     printf("       of the local interface that will act as the *unique* wifi registrar in the whole\n");
     printf("       network.\n");
@@ -336,11 +416,6 @@ static void _printUsage(char *program_name)
     printf("       '-v', if present, will increase the verbosity level. Can be present more than once,\n");
     printf("       making the AL entity even more verbose each time.\n");
     printf("\n");
-    printf("       '<alme_port_number>', is the port number where a TCP socket will be opened to receive\n");
-    printf("       ALME messages. If this argument is not given, a default value of '8888' is used.\n");
-    printf("\n");
-
-    return;
 }
 
 
@@ -350,11 +425,8 @@ static void _printUsage(char *program_name)
 
 int main(int argc, char *argv[])
 {
-    mac_address al_mac_address = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
-    uint8_t map_whole_network = 0;
 
     int   c;
-    int  alme_port_number     = 0;
     char *registrar_interface = NULL;
 
     int verbosity_counter = 1; // Only ERROR and WARNING messages
@@ -362,20 +434,10 @@ int main(int argc, char *argv[])
     registerGhnSpiritInterfaceType();
     registerSimulatedInterfaceType();
 
-    while ((c = getopt (argc, argv, "wr:vh:p:")) != -1)
+    while ((c = getopt (argc, argv, "r:vh:")) != -1)
     {
         switch (c)
         {
-            case 'w':
-            {
-                // If set to '1', the AL entity will not only query its direct
-                // neighbors, but also its neighbors's neighbors and so on...
-                // taking much more memory but obtaining a whole network map.
-                //
-                map_whole_network = 1;
-                break;
-            }
-
             case 'r':
             {
                 // This is the interface that acts as Wifi registrar in the
@@ -396,14 +458,6 @@ int main(int argc, char *argv[])
                 break;
             }
 
-            case 'p':
-            {
-                // Alme server port number
-                //
-                alme_port_number = atoi(optarg);
-                break;
-            }
-
             case 'h':
             {
                 _printUsage(argv[0]);
@@ -413,16 +467,9 @@ int main(int argc, char *argv[])
         }
     }
 
-    if (0 == alme_port_number)
-    {
-        alme_port_number = DEFAULT_ALME_SERVER_PORT;
-    }
-
     PLATFORM_PRINTF_DEBUG_SET_VERBOSITY_LEVEL(verbosity_counter);
 
-    uci_get_interfaces(&al_mac_address);
-
-    almeServerPortSet(alme_port_number);
+    uci_get_interfaces();
 
     // Initialize platform-specific code
     //
@@ -435,16 +482,8 @@ int main(int argc, char *argv[])
     // Insert the provided AL MAC address into the database
     //
     DMinit();
-    DMalMacSet(al_mac_address);
-    DMmapWholeNetworkSet(map_whole_network);
-    PLATFORM_PRINTF_DEBUG_DETAIL("Starting AL entity (AL MAC = %02x:%02x:%02x:%02x:%02x:%02x). Map whole network = %d...\n",
-                                al_mac_address[0],
-                                al_mac_address[1],
-                                al_mac_address[2],
-                                al_mac_address[3],
-                                al_mac_address[4],
-                                al_mac_address[5],
-                                map_whole_network);
+
+    uci_get_prplmesh_config();
 
     // Collect all the informations about local radios throught netlink
     //
