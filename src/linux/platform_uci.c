@@ -218,14 +218,6 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
         return false;
     }
 
-    /* @todo The presence of the new AP should be detected through netlink. For the time being, however, we update the data model
-     * straight away. */
-    struct interfaceWifi *iface = interfaceWifiAlloc(bssInfo.bssid, local_device);
-    radioAddInterfaceWifi(radio, iface);
-    iface->role = interface_wifi_role_ap;
-    memcpy(&iface->bssInfo, &bssInfo, sizeof(bssInfo));
-    iface->i.tearDown = uci_teardown_iface;
-
     return uci_commit_wireless();
 }
 
