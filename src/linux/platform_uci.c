@@ -74,6 +74,20 @@
 
 #include <platform.h>
 
+/** @brief Add a string to a blob.
+ *
+ * UCI doesn't handle strings correctly: it assumes them to be 0-terminated.
+ * This helper function makes sure that they are 0-terminated. Obviously, strings with embedded 0s still won't work.
+ */
+static void uci_blobmsg_add_string(struct blob_buf *b, const char *name, const void *str, unsigned len)
+{
+    char *str_copy = memalloc(len + 1);
+    memcpy(str_copy, str, len);
+    str_copy[len] = '\0';
+    blobmsg_add_field(b, BLOBMSG_TYPE_STRING, name, str_copy, len+1);
+    free(str_copy);
+}
+
 /** Invoke method on UCI over ubus
  *
  * @a b is freed whether or not the method fails.
@@ -158,7 +172,7 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
     blobmsg_add_string(&b, "network", "lan"); /* @todo set appropriate network */
     snprintf(macstr, sizeof(macstr), MACSTR, MAC2STR(bssInfo.bssid));
     blobmsg_add_string(&b, "bssid", macstr);
-    blobmsg_add_field(&b, BLOBMSG_TYPE_STRING, "ssid", bssInfo.ssid.ssid, bssInfo.ssid.length);
+    uci_blobmsg_add_string(&b, "ssid", bssInfo.ssid.ssid, bssInfo.ssid.length);
     switch (bssInfo.auth_mode) {
     case auth_mode_open:
         blobmsg_add_string(&b, "encryption", "none");
@@ -169,7 +183,7 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
         return false;
     case auth_mode_wpa2psk:
         blobmsg_add_string(&b, "encryption", "psk2");
-        blobmsg_add_field(&b, BLOBMSG_TYPE_STRING, "key", bssInfo.key, bssInfo.key_len);
+        uci_blobmsg_add_string(&b, "key", bssInfo.key, bssInfo.key_len);
         break;
     }
 
@@ -190,11 +204,11 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
         /* Fronthaul BSS must have WPS enabled */
         blobmsg_add_u8(&b, "wps_pushbutton", 1);
         if (local_device->backhaul_ssid.length > 0) {
-            blobmsg_add_field(&b, BLOBMSG_TYPE_STRING, "multi_ap_backhaul_ssid",
-                              local_device->backhaul_ssid.ssid, local_device->backhaul_ssid.length);
+            uci_blobmsg_add_string(&b, "multi_ap_backhaul_ssid",
+                                   local_device->backhaul_ssid.ssid, local_device->backhaul_ssid.length);
             if (local_device->backhaul_key_length > 0) {
-                blobmsg_add_field(&b, BLOBMSG_TYPE_STRING, "multi_ap_backhaul_key",
-                                  local_device->backhaul_key, local_device->backhaul_key_length);
+                uci_blobmsg_add_string(&b, "multi_ap_backhaul_key",
+                                       local_device->backhaul_key, local_device->backhaul_key_length);
             }
         }
     }
@@ -239,9 +253,9 @@ static bool uci_set_backhaul_values(const struct ssid ssid, const uint8_t *key, 
 
     if (ssid.length > 0) {
         values = blobmsg_open_table(&b, "values");
-        blobmsg_add_field(&b, BLOBMSG_TYPE_STRING, "multi_ap_backhaul_ssid", ssid.ssid, ssid.length);
+        uci_blobmsg_add_string(&b, "multi_ap_backhaul_ssid", ssid.ssid, ssid.length);
         if (key_length > 0) {
-            blobmsg_add_field(&b, BLOBMSG_TYPE_STRING, "multi_ap_backhaul_key", key, key_length);
+            uci_blobmsg_add_string(&b, "multi_ap_backhaul_key", key, key_length);
         }
         blobmsg_close_table(&b, values);
         return uci_invoke("set", &b);
