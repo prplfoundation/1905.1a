@@ -103,6 +103,11 @@ if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
          linux/platform_interfaces_simulated.c
          linux/platform_os.c)
 
+    target_link_libraries(${libname} OpenSSL::Crypto Threads::Threads ${NL3_LIBRARIES})
+    if (LIBRT)
+        target_link_libraries(${libname} rt)
+    endif (LIBRT)
+
     if (OPENWRT)
         find_library(UBOX ubox)
         if (NOT UBOX)
@@ -118,17 +123,16 @@ if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
         target_link_libraries(${libname} ${UBUS} ${UBOX})
     endif (OPENWRT)
 
+    add_executable(al_entity linux/al_entity/al_entity_main.c)
+    target_link_libraries(al_entity ${libname})
+    install(TARGETS al_entity DESTINATION bin)
+
     if (OPENWRT)
-        add_executable(al_entity linux/al_entity/al_entity_openwrt.c)
-    else (OPENWRT)
-        add_executable(al_entity linux/al_entity/al_entity_main.c)
+        add_executable(prplmesh linux/al_entity/al_entity_openwrt.c)
+        target_link_libraries(prplmesh ${libname})
+        install(TARGETS prplmesh DESTINATION bin)
     endif (OPENWRT)
 
-    target_link_libraries(al_entity ${libname} OpenSSL::Crypto Threads::Threads ${NL3_LIBRARIES})
-    if (LIBRT)
-        target_link_libraries(al_entity rt)
-    endif (LIBRT)
-    install(TARGETS al_entity DESTINATION bin)
 
     add_executable(hl_entity linux/hl_entity/hl_entity_main.c)
     target_link_libraries(hl_entity ${libname} OpenSSL::Crypto Threads::Threads)
