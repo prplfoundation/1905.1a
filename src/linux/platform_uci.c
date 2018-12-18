@@ -105,7 +105,7 @@ static bool uci_invoke(const char *method, struct blob_buf *b)
 
 static bool uci_commit_wireless()
 {
-    struct blob_buf b;
+    struct blob_buf b = {0,};
 
     blob_buf_init(&b, 0);
     blobmsg_add_string(&b, "config", "wireless");
@@ -116,7 +116,7 @@ static bool uci_teardown_iface(struct interface *interface)
 {
     struct interfaceWifi *interface_wifi = container_of(interface, struct interfaceWifi, i);
     char macstr[18];
-    struct blob_buf b;
+    struct blob_buf b = {0,};
     void *match;
 
     if (interface->type != interface_type_wifi)
@@ -145,7 +145,7 @@ static bool uci_teardown_iface(struct interface *interface)
 static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool ap)
 {
     char macstr[18];
-    struct blob_buf b;
+    struct blob_buf b = {0,};
     void *values;
     uint8_t multi_ap;
 
@@ -227,7 +227,7 @@ static bool uci_create_sta(struct radio *radio, struct bssInfo bssInfo)
 
 static bool uci_set_backhaul_values(const struct ssid ssid, const uint8_t *key, size_t key_length, const char *multi_ap_val)
 {
-    struct blob_buf b;
+    struct blob_buf b = {0,};
     void *values;
     void *match;
 
@@ -350,8 +350,8 @@ void uci_register_handlers(void)
 {
     struct ubus_context *ctx = ubus_connect(NULL);
     uint32_t id;
-    static struct blob_buf req;
-    static dlist_head uciradios;
+    struct blob_buf req = {0,};
+    dlist_head uciradios;
     struct radio *radio;
     struct uciradiolist *uciphymatch;
     char *phyname;
