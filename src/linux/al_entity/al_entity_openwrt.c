@@ -322,52 +322,39 @@ uci_get_interfaces_out:
  * policy for uci get prplmesh
  */
 enum {
+    PRPLMESH_TYPE,
     PRPLMESH_PORT,
     PRPLMESH_AL_ADDR,
     PRPLMESH_WHOLE_NETWORK,
+    PRPLMESH_SSID,
+    PRPLMESH_KEY,
+    PRPLMESH_BACKHAUL,
+    PRPLMESH_BACKHAUL_ONLY,
+    PRPLMESH_BAND,
     PRPLMESH_MAX,
 };
 
-
 static const struct blobmsg_policy prplmesh_policy[PRPLMESH_MAX] = {
+    [PRPLMESH_TYPE] = { .name = ".type", .type = BLOBMSG_TYPE_STRING },
     [PRPLMESH_PORT] = { .name = "port", .type = BLOBMSG_TYPE_STRING },
     [PRPLMESH_AL_ADDR] = { .name = "al_address", .type = BLOBMSG_TYPE_STRING },
     [PRPLMESH_WHOLE_NETWORK] = { .name = "whole_network", .type = BLOBMSG_TYPE_STRING },
+    [PRPLMESH_SSID] = { .name = "ssid", .type = BLOBMSG_TYPE_STRING },
+    [PRPLMESH_KEY] = { .name = "key", .type = BLOBMSG_TYPE_STRING },
+    [PRPLMESH_BACKHAUL] = { .name = "backhaul", .type = BLOBMSG_TYPE_STRING },
+    [PRPLMESH_BACKHAUL_ONLY] = { .name = "backhaul_only", .type = BLOBMSG_TYPE_STRING },
+    [PRPLMESH_BAND] = { .name = "band", .type = BLOBMSG_TYPE_STRING },
 };
 
-/*
- * policy for UCI get
- */
-enum {
-    UCI_GET_VALUES,
-    UCI_GET_MAX,
-};
-
-static const struct blobmsg_policy uciget_policy[UCI_GET_MAX] = {
-    [UCI_GET_VALUES] = { .name = "values", .type = BLOBMSG_TYPE_TABLE },
-};
-
-/*
- * called by uci get prplmesh call
- */
-static void prplmesh_config_cb(struct ubus_request *req, int type, struct blob_attr *msg)
+static void prplmesh_config_parse(struct blob_attr *tb[PRPLMESH_MAX])
 {
-    struct blob_attr *tbv[UCI_GET_MAX];
-    struct blob_attr *tb[PRPLMESH_MAX];
     char *al_mac_str;
     mac_address al_mac_address;
     bool map_whole_network = false;
     uint16_t alme_port_number = DEFAULT_ALME_SERVER_PORT;
 
-    blobmsg_parse(uciget_policy, UCI_GET_MAX, tbv, blob_data(msg), blob_len(msg));
-    if (!tbv[UCI_GET_VALUES] || blobmsg_type(tbv[UCI_GET_VALUES]) != BLOBMSG_TYPE_TABLE) {
-        fprintf(stderr, "error: no UCI values for prplmesh\n");
-        exit(1);
-    }
-
-    blobmsg_parse(prplmesh_policy, PRPLMESH_MAX, tb, blobmsg_data(tbv[UCI_GET_VALUES]), blobmsg_data_len(tbv[UCI_GET_VALUES]));
     if (!tb[PRPLMESH_AL_ADDR]) {
-        fprintf(stderr, "error: AL MAC address not set in UCI.\n");
+        PLATFORM_PRINTF_DEBUG_ERROR("error: AL MAC address not set in UCI.\n");
         exit(1);
     }
     al_mac_str = blobmsg_get_string(tb[PRPLMESH_AL_ADDR]);
@@ -392,9 +379,9 @@ static void prplmesh_config_cb(struct ubus_request *req, int type, struct blob_a
         unsigned long port;
         port = strtoul(value, &endptr, 0);
         if (endptr == NULL || *endptr != '\0') {
-            fprintf(stderr, "prplmesh.prplmesh.port value `%s' is not a number\n", value);
+            PLATFORM_PRINTF_DEBUG_WARNING("prplmesh.prplmesh.port value `%s' is not a number\n", value);
         } else if (port == 0 || port > 0xffff) {
-            fprintf(stderr, "Invalid port %lu\n", port);
+            PLATFORM_PRINTF_DEBUG_WARNING("Invalid port %lu\n", port);
         } else {
             alme_port_number = (uint16_t)port;
         }
@@ -403,6 +390,93 @@ static void prplmesh_config_cb(struct ubus_request *req, int type, struct blob_a
 
     PLATFORM_PRINTF_DEBUG_INFO("Starting AL entity (AL MAC = "MACSTR"). Port = %u. Map whole network = %d...\n",
                                MAC2STR(al_mac_address), alme_port_number, map_whole_network);
+}
+
+static void registrar_config_parse(struct blob_attr *tb[PRPLMESH_MAX])
+{
+    char *value;
+    struct wscRegistrarInfo *wsc_info;
+
+    if (!tb[PRPLMESH_SSID]) {
+        PLATFORM_PRINTF_DEBUG_WARNING("Registrar section without SSID\n");
+        return;
+    }
+
+    registrar.d = local_device;
+    /* For now, it is always a MAP Controller. */
+    registrar.is_map = true;
+
+    wsc_info = zmemalloc(sizeof(struct wscRegistrarInfo));
+    copyLengthString(wsc_info->bss_info.ssid.ssid, &wsc_info->bss_info.ssid.length,
+                     blobmsg_get_string(tb[PRPLMESH_SSID]), sizeof(wsc_info->bss_info.ssid.ssid));
+    if (tb[PRPLMESH_KEY]) {
+        wsc_info->bss_info.auth_mode = auth_mode_wpa2psk;
+        copyLengthString(wsc_info->bss_info.key, &wsc_info->bss_info.key_len,
+                         blobmsg_get_string(tb[PRPLMESH_KEY]), sizeof(wsc_info->bss_info.key));
+    } else {
+        wsc_info->bss_info.auth_mode = auth_mode_open;
+    }
+    if (tb[PRPLMESH_BACKHAUL]) {
+        wsc_info->bss_info.backhaul = atoi(blobmsg_get_string(tb[PRPLMESH_BACKHAUL]));
+    }
+    if (tb[PRPLMESH_BACKHAUL_ONLY]) {
+        wsc_info->bss_info.backhaul = atoi(blobmsg_get_string(tb[PRPLMESH_BACKHAUL_ONLY]));
+    }
+    if (tb[PRPLMESH_BAND]) {
+        wsc_info->rf_bands = atoi(blobmsg_get_string(tb[PRPLMESH_BAND]));
+    } else {
+        wsc_info->rf_bands = WPS_RF_24GHZ | WPS_RF_50GHZ;
+    }
+    strncpy(wsc_info->device_data.device_name, "prplMesh", sizeof(wsc_info->device_data.device_name) - 1);
+    strncpy(wsc_info->device_data.manufacturer_name, "prpl", sizeof(wsc_info->device_data.manufacturer_name) - 1);
+    strncpy(wsc_info->device_data.model_name, "prplMesh", sizeof(wsc_info->device_data.model_name) - 1);
+    strncpy(wsc_info->device_data.model_number, "0.1", sizeof(wsc_info->device_data.model_number) - 1);
+    strncpy(wsc_info->device_data.serial_number, "00000", sizeof(wsc_info->device_data.serial_number) - 1);
+    registrarAddWsc(wsc_info);
+}
+
+/*
+ * policy for UCI get
+ */
+enum {
+    UCI_GET_VALUES,
+    UCI_GET_MAX,
+};
+
+static const struct blobmsg_policy uciget_policy[UCI_GET_MAX] = {
+    [UCI_GET_VALUES] = { .name = "values", .type = BLOBMSG_TYPE_TABLE },
+};
+
+/*
+ * called by uci get prplmesh call
+ */
+static void prplmesh_config_cb(struct ubus_request *req, int type, struct blob_attr *msg)
+{
+    struct blob_attr *tbv[UCI_GET_MAX];
+    struct blob_attr *tb[PRPLMESH_MAX];
+    struct blob_attr *cur;
+    int rem;
+
+    blobmsg_parse(uciget_policy, UCI_GET_MAX, tbv, blob_data(msg), blob_len(msg));
+    if (!tbv[UCI_GET_VALUES] || blobmsg_type(tbv[UCI_GET_VALUES]) != BLOBMSG_TYPE_TABLE) {
+        PLATFORM_PRINTF_DEBUG_ERROR("error: no UCI values for prplmesh\n");
+        exit(1);
+    }
+
+    blobmsg_for_each_attr(cur, tbv[UCI_GET_VALUES], rem) {
+        blobmsg_parse(prplmesh_policy, PRPLMESH_MAX, tb, blobmsg_data(cur), blobmsg_data_len(cur));
+        if (!tb[PRPLMESH_TYPE]) {
+            PLATFORM_PRINTF_DEBUG_WARNING("UCI section %s without type\n", blobmsg_name(cur));
+            continue;
+        }
+        if (!strcmp(blobmsg_get_string(tb[PRPLMESH_TYPE]), "prplmesh")) {
+            prplmesh_config_parse(tb);
+        } else if (!strcmp(blobmsg_get_string(tb[PRPLMESH_TYPE]), "registrar")) {
+                registrar_config_parse(tb);
+        } else {
+            PLATFORM_PRINTF_DEBUG_WARNING("Unexpected UCI section %s type %s\n", blobmsg_name(cur), blobmsg_get_string(tb[PRPLMESH_TYPE]));
+        }
+    }
 }
 
 static void uci_get_prplmesh_config()
@@ -418,7 +492,6 @@ static void uci_get_prplmesh_config()
 
     blob_buf_init(&req, 0);
     blobmsg_add_string(&req, "config", "prplmesh");
-    blobmsg_add_string(&req, "section", "prplmesh");
     if (ubus_lookup_id(ctx, "uci", &id) ||
         ubus_invoke(ctx, id, "get", req.head, prplmesh_config_cb, NULL, 3000))
         goto err_out;
@@ -432,13 +505,9 @@ static void _printUsage(char *program_name)
 {
     printf("AL entity (build %s)\n", _BUILD_NUMBER_);
     printf("\n");
-    printf("Usage: %s [-r <registrar_interface>] [-v]\n", program_name);
+    printf("Usage: %s [-v]\n", program_name);
     printf("\n");
     printf("  ...where:\n");
-    printf("       '-r', if present, will tell the AL entity that '<registrar_interface>' is the name\n");
-    printf("       of the local interface that will act as the *unique* wifi registrar in the whole\n");
-    printf("       network.\n");
-    printf("\n");
     printf("       '-v', if present, will increase the verbosity level. Can be present more than once,\n");
     printf("       making the AL entity even more verbose each time.\n");
     printf("\n");
@@ -453,28 +522,16 @@ int main(int argc, char *argv[])
 {
 
     int   c;
-    char *registrar_interface = NULL;
 
     int verbosity_counter = 1; // Only ERROR and WARNING messages
 
     registerGhnSpiritInterfaceType();
     registerSimulatedInterfaceType();
 
-    while ((c = getopt (argc, argv, "r:vh:")) != -1)
+    while ((c = getopt (argc, argv, "vh:")) != -1)
     {
         switch (c)
         {
-            case 'r':
-            {
-                // This is the interface that acts as Wifi registrar in the
-                // network.
-                // Remember that only one interface in the whole network should
-                // act as a registrar.
-                //
-                registrar_interface = optarg;
-                break;
-            }
-
             case 'v':
             {
                 // Each time this flag appears, the verbosity counter is
@@ -523,86 +580,6 @@ int main(int argc, char *argv[])
     // Collect interfaces
     PLATFORM_PRINTF_DEBUG_DETAIL("Retrieving list of local interfaces...\n");
     createLocalInterfaces();
-
-    // If an interface is the designated 1905 network registrar
-    // interface, save its MAC address to the database
-    //
-    if (NULL != registrar_interface)
-    {
-        struct interface *interface;
-        struct interfaceWifi *interface_wifi;
-
-        interface = findLocalInterface(registrar_interface);
-
-        if (interface == NULL)
-        {
-            PLATFORM_PRINTF_DEBUG_ERROR("Could not find registrar interface %s\n", registrar_interface);
-        }
-        else if (interface->type != interface_type_wifi)
-        {
-            PLATFORM_PRINTF_DEBUG_ERROR("Registrar interface %s is not a Wifi interface\n", registrar_interface);
-        }
-        else
-        {
-            struct interfaceInfo *x;
-
-            interface_wifi = container_of(interface, struct interfaceWifi, i);
-            x = PLATFORM_GET_1905_INTERFACE_INFO(interface->name);
-            /* x cannot be NULL because the interface exists. */
-
-            registrar.d = local_device;
-            /* For now, it is always a MAP Controller. */
-            registrar.is_map = true;
-
-            /* Copy interface info into WSC info.
-             * @todo this should come from a config file.
-             * @todo Support multiple bands.
-             */
-            struct wscRegistrarInfo *wsc_info = zmemalloc(sizeof(struct wscRegistrarInfo));
-            memcpy(&wsc_info->bss_info, &interface_wifi->bssInfo, sizeof(wsc_info->bss_info));
-            strncpy(wsc_info->device_data.device_name, x->device_name, sizeof(wsc_info->device_data.device_name) - 1);
-            strncpy(wsc_info->device_data.manufacturer_name, x->manufacturer_name, sizeof(wsc_info->device_data.manufacturer_name) - 1);
-            strncpy(wsc_info->device_data.model_name, x->model_name, sizeof(wsc_info->device_data.model_name) - 1);
-            strncpy(wsc_info->device_data.model_number, x->model_number, sizeof(wsc_info->device_data.model_number) - 1);
-            strncpy(wsc_info->device_data.serial_number, x->serial_number, sizeof(wsc_info->device_data.serial_number) - 1);
-            /* @todo support UUID; for now its 0. */
-            switch(x->interface_type)
-            {
-                case INTERFACE_TYPE_IEEE_802_11B_2_4_GHZ:
-                case INTERFACE_TYPE_IEEE_802_11G_2_4_GHZ:
-                case INTERFACE_TYPE_IEEE_802_11N_2_4_GHZ:
-                    wsc_info->rf_bands = WPS_RF_24GHZ;
-                    break;
-
-                case INTERFACE_TYPE_IEEE_802_11A_5_GHZ:
-                case INTERFACE_TYPE_IEEE_802_11N_5_GHZ:
-                case INTERFACE_TYPE_IEEE_802_11AC_5_GHZ:
-                    wsc_info->rf_bands = WPS_RF_50GHZ;
-                    break;
-
-                case INTERFACE_TYPE_IEEE_802_11AD_60_GHZ:
-                    wsc_info->rf_bands = WPS_RF_60GHZ;
-                    break;
-
-                case INTERFACE_TYPE_IEEE_802_11AF_GHZ:
-                    PLATFORM_PRINTF_DEBUG_ERROR("Interface %s is 802.11af which is not supported by WSC!\n",x->name);
-
-                    free_1905_INTERFACE_INFO(x);
-                    return AL_ERROR_INTERFACE_ERROR;
-
-                default:
-                    PLATFORM_PRINTF_DEBUG_ERROR("Interface %s is not a 802.11 interface and thus cannot act as a registrar!\n",x->name);
-
-                    free(wsc_info);
-                    free_1905_INTERFACE_INFO(x);
-                    return AL_ERROR_INTERFACE_ERROR;
-
-            }
-
-            registrarAddWsc(wsc_info);
-            free_1905_INTERFACE_INFO(x);
-        }
-    }
 
     start1905AL();
 
