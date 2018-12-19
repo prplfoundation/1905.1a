@@ -336,23 +336,41 @@ static const struct blobmsg_policy prplmesh_policy[PRPLMESH_MAX] = {
 };
 
 /*
+ * policy for UCI get
+ */
+enum {
+    UCI_GET_VALUES,
+    UCI_GET_MAX,
+};
+
+static const struct blobmsg_policy uciget_policy[UCI_GET_MAX] = {
+    [UCI_GET_VALUES] = { .name = "values", .type = BLOBMSG_TYPE_TABLE },
+};
+
+/*
  * called by uci get prplmesh call
  */
 static void prplmesh_config_cb(struct ubus_request *req, int type, struct blob_attr *msg)
 {
+    struct blob_attr *tbv[UCI_GET_MAX];
     struct blob_attr *tb[PRPLMESH_MAX];
     char *al_mac_str;
     mac_address al_mac_address;
     bool map_whole_network;
     uint16_t alme_port_number;
 
-    blobmsg_parse(prplmesh_policy, PRPLMESH_MAX, tb, blob_data(msg), blob_len(msg));
+    blobmsg_parse(uciget_policy, UCI_GET_MAX, tbv, blob_data(msg), blob_len(msg));
+    if (!tbv[UCI_GET_VALUES] || blobmsg_type(tbv[UCI_GET_VALUES]) != BLOBMSG_TYPE_TABLE) {
+        fprintf(stderr, "error: no UCI values for prplmesh\n");
+        exit(1);
+    }
 
-    if (!tb[PRPLMESH_PORT]) {
+    blobmsg_parse(prplmesh_policy, PRPLMESH_MAX, tb, blobmsg_data(tbv[UCI_GET_VALUES]), blobmsg_data_len(tbv[UCI_GET_VALUES]));
+    if (!tb[PRPLMESH_AL_ADDR]) {
         fprintf(stderr, "error: AL MAC address not set in UCI.\n");
         exit(1);
     }
-    al_mac_str = blobmsg_get_string(tb[PRPLMESH_PORT]);
+    al_mac_str = blobmsg_get_string(tb[PRPLMESH_AL_ADDR]);
     asciiToMac(al_mac_str, al_mac_address);
     DMalMacSet(al_mac_address);
 
@@ -370,14 +388,8 @@ static void prplmesh_config_cb(struct ubus_request *req, int type, struct blob_a
     }
     almeServerPortSet(alme_port_number);
 
-    PLATFORM_PRINTF_DEBUG_DETAIL("Starting AL entity (AL MAC = %02x:%02x:%02x:%02x:%02x:%02x). Map whole network = %d...\n",
-                                al_mac_address[0],
-                                al_mac_address[1],
-                                al_mac_address[2],
-                                al_mac_address[3],
-                                al_mac_address[4],
-                                al_mac_address[5],
-                                map_whole_network);
+    PLATFORM_PRINTF_DEBUG_INFO("Starting AL entity (AL MAC = "MACSTR"). Map whole network = %d...\n",
+                               MAC2STR(al_mac_address), map_whole_network);
 }
 
 static void uci_get_prplmesh_config()
@@ -393,6 +405,7 @@ static void uci_get_prplmesh_config()
 
     blob_buf_init(&req, 0);
     blobmsg_add_string(&req, "config", "prplmesh");
+    blobmsg_add_string(&req, "section", "prplmesh");
     if (ubus_lookup_id(ctx, "uci", &id) ||
         ubus_invoke(ctx, id, "get", req.head, prplmesh_config_cb, NULL, 3000))
         goto err_out;
