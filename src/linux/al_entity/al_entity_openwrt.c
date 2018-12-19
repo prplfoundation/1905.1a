@@ -330,9 +330,9 @@ enum {
 
 
 static const struct blobmsg_policy prplmesh_policy[PRPLMESH_MAX] = {
-    [PRPLMESH_PORT] = { .name = "port", .type = BLOBMSG_TYPE_INT16 },
+    [PRPLMESH_PORT] = { .name = "port", .type = BLOBMSG_TYPE_STRING },
     [PRPLMESH_AL_ADDR] = { .name = "al_address", .type = BLOBMSG_TYPE_STRING },
-    [PRPLMESH_WHOLE_NETWORK] = { .name = "whole_network", .type = BLOBMSG_TYPE_BOOL },
+    [PRPLMESH_WHOLE_NETWORK] = { .name = "whole_network", .type = BLOBMSG_TYPE_STRING },
 };
 
 /*
@@ -356,8 +356,8 @@ static void prplmesh_config_cb(struct ubus_request *req, int type, struct blob_a
     struct blob_attr *tb[PRPLMESH_MAX];
     char *al_mac_str;
     mac_address al_mac_address;
-    bool map_whole_network;
-    uint16_t alme_port_number;
+    bool map_whole_network = false;
+    uint16_t alme_port_number = DEFAULT_ALME_SERVER_PORT;
 
     blobmsg_parse(uciget_policy, UCI_GET_MAX, tbv, blob_data(msg), blob_len(msg));
     if (!tbv[UCI_GET_VALUES] || blobmsg_type(tbv[UCI_GET_VALUES]) != BLOBMSG_TYPE_TABLE) {
@@ -375,21 +375,34 @@ static void prplmesh_config_cb(struct ubus_request *req, int type, struct blob_a
     DMalMacSet(al_mac_address);
 
     if (tb[PRPLMESH_WHOLE_NETWORK]) {
-        map_whole_network = blobmsg_get_bool(tb[PRPLMESH_WHOLE_NETWORK]);
-    } else {
-        map_whole_network = false;
+        const char *value = blobmsg_get_string(tb[PRPLMESH_WHOLE_NETWORK]);
+        if (!strcmp(value, "true") ||
+                !strcmp(value, "yes") ||
+                !strcmp(value, "on") ||
+                !strcmp(value, "enabled") ||
+                !strcmp(value, "1")) {
+            map_whole_network = true;
+        }
     }
     DMmapWholeNetworkSet(map_whole_network);
 
     if (tb[PRPLMESH_PORT]) {
-        alme_port_number = blobmsg_get_u16(tb[PRPLMESH_PORT]);
-    } else {
-        alme_port_number = DEFAULT_ALME_SERVER_PORT;
+        const char *value = blobmsg_get_string(tb[PRPLMESH_PORT]);
+        char *endptr;
+        unsigned long port;
+        port = strtoul(value, &endptr, 0);
+        if (endptr == NULL || *endptr != '\0') {
+            fprintf(stderr, "prplmesh.prplmesh.port value `%s' is not a number\n", value);
+        } else if (port == 0 || port > 0xffff) {
+            fprintf(stderr, "Invalid port %lu\n", port);
+        } else {
+            alme_port_number = (uint16_t)port;
+        }
     }
     almeServerPortSet(alme_port_number);
 
-    PLATFORM_PRINTF_DEBUG_INFO("Starting AL entity (AL MAC = "MACSTR"). Map whole network = %d...\n",
-                               MAC2STR(al_mac_address), map_whole_network);
+    PLATFORM_PRINTF_DEBUG_INFO("Starting AL entity (AL MAC = "MACSTR"). Port = %u. Map whole network = %d...\n",
+                               MAC2STR(al_mac_address), alme_port_number, map_whole_network);
 }
 
 static void uci_get_prplmesh_config()
