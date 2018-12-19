@@ -1331,8 +1331,15 @@ bool wscBuildM2(struct wscM1Info *m1_info, const struct wscRegistrarInfo *wsc_in
          * will not behave correctly. */
         aux8  = WFA_ELEM_MULTI_AP_EXTENSION;                              _I1B(&aux8,          &p2);
         aux8  = 1;                                                        _I1B(&aux8,          &p2);
-        /* @todo correctly set the flags */
-        aux8  = MULTI_AP_FRONTHAUL_BSS | MULTI_AP_BACKHAUL_BSS;           _I1B(&aux8,          &p2);
+        if (wsc_info->bss_info.backhaul) {
+            aux8 = MULTI_AP_BACKHAUL_BSS;
+            if (!wsc_info->bss_info.backhaul_only) {
+                aux8 |= MULTI_AP_FRONTHAUL_BSS;
+            }
+        } else {
+            aux8 = MULTI_AP_FRONTHAUL_BSS;
+        }
+        _I1B(&aux8,          &p2);
     }
 
     // ENCRYPTED SETTINGS
