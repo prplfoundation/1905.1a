@@ -581,6 +581,32 @@ int main(int argc, char *argv[])
     PLATFORM_PRINTF_DEBUG_DETAIL("Retrieving list of local interfaces...\n");
     createLocalInterfaces();
 
+    /* @todo HACK backhaul SSIDs will create a new VIF for each connected bSTA. Include these in the list of interfaces
+     * so we can send/receive packets on them. Note that this will screw up the topology somewhat. To reduce the fallout,
+     * we make it "other" type interfaces. */
+    struct radio *radio;
+    dlist_for_each(radio, local_device->radios, l) {
+        unsigned i;
+        for (i = 0; i < radio->configured_bsses.length; i++) {
+            struct interfaceWifi *interface_wifi = radio->configured_bsses.data[i];
+            if (interface_wifi->bssInfo.backhaul) {
+                unsigned sta;
+                for (sta = 0; sta < 10; sta++) {
+                    size_t namelen = strlen(interface_wifi->i.name) + strlen(".staX") + 1;
+                    char *name = memalloc(namelen);
+                    struct interface *interface;
+
+                    snprintf(name, namelen, "%s.sta%.1u", interface_wifi->i.name, sta);
+                    interface = interfaceAlloc(interface_wifi->bssInfo.bssid, local_device);
+                    interface->media_type = MEDIA_TYPE_UNKNOWN;
+                    interface->name = name;
+                    interface->power_state = interface_power_state_on;
+                    addInterface(name);
+                }
+            }
+        }
+    }
+
     start1905AL();
 
     return 0;
