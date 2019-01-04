@@ -717,6 +717,7 @@ int main(int argc, char *argv[])
                     interface->media_type = MEDIA_TYPE_UNKNOWN;
                     interface->name = name;
                     interface->power_state = interface_power_state_on;
+                    interface->type = interface_type_ethernet; /* To make sure it is secured */
                     addInterface(name);
                 }
             }
