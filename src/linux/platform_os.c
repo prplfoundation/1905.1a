@@ -180,112 +180,115 @@ static void *recvLoopThread(void *p)
         return NULL;
     }
 
-    interface->ifindex = getIfIndex(interface->interface->name);
-    if (-1 == interface->ifindex)
+    /* A STA interface may disappear, and fake interfaces for backhaul STAs may appear and disappear as well.
+     * Therefore, keep on retrying if the interface can't be opened. */
+    for (;; sleep(24))
     {
-        free(interface);
-        return NULL;
-    }
-
-    memset(&multicast_request, 0, sizeof(multicast_request));
-    multicast_request.mr_ifindex = interface->ifindex;
-    multicast_request.mr_alen = 6;
-
-    interface->sock_1905_fd = openPacketSocket(interface->ifindex, ETHERTYPE_1905);
-    if (-1 == interface->sock_1905_fd)
-    {
-        PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] socket('%s' protocol 1905) returned with errno=%d (%s) while opening a RAW socket\n",
-                                    interface->interface->name, errno, strerror(errno));
-        free(interface);
-        return NULL;
-    }
-
-    /* Add the AL address to this interface */
-    multicast_request.mr_type = PACKET_MR_UNICAST;
-    memcpy(multicast_request.mr_address, interface->al_mac_address, 6);
-    if (-1 == setsockopt(interface->sock_1905_fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &multicast_request, sizeof(multicast_request)))
-    {
-        PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] Failed to add AL MAC address to interface '%s' with errno=%d (%s)\n",
-                                    interface->interface->name, errno, strerror(errno));
-    }
-
-    /* Add the 1905 multicast address to this interface */
-    multicast_request.mr_type = PACKET_MR_MULTICAST;
-    memcpy(multicast_request.mr_address, MCAST_1905, 6);
-    if (-1 == setsockopt(interface->sock_1905_fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &multicast_request, sizeof(multicast_request)))
-    {
-        PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] Failed to add 1905 multicast address to interface '%s' with errno=%d (%s)\n",
-                                    interface->interface->name, errno, strerror(errno));
-    }
-
-    /** @todo Make LLDP optional, for when lldpd is also running on the same device. */
-    interface->sock_lldp_fd = openPacketSocket(interface->ifindex, ETHERTYPE_LLDP);
-    if (-1 == interface->sock_lldp_fd)
-    {
-        PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] socket('%s' protocol 1905) returned with errno=%d (%s) while opening a RAW socket\n",
-                                    interface->interface->name, errno, strerror(errno));
-        close(interface->sock_1905_fd);
-        free(interface);
-        return NULL;
-    }
-
-    /* Add the LLDP multicast address to this interface */
-    multicast_request.mr_type = PACKET_MR_MULTICAST;
-    memcpy(multicast_request.mr_address, MCAST_LLDP, 6);
-    if (-1 == setsockopt(interface->sock_lldp_fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &multicast_request, sizeof(multicast_request)))
-    {
-        PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] Failed to add LLDP multicast address to interface '%s' with errno=%d (%s)\n",
-                                    interface->interface->name, errno, strerror(errno));
-    }
-
-
-    PLATFORM_PRINTF_DEBUG_DETAIL("Starting recv on %s\n", interface->interface->name);
-    /** @todo move to libevent instead of threads + poll */
-    while(1)
-    {
-        struct pollfd fdset[2];
-        size_t i;
-
-        memset((void*)fdset, 0, sizeof(fdset));
-
-        fdset[0].fd = interface->sock_1905_fd;
-        fdset[0].events = POLLIN;
-        fdset[1].fd = interface->sock_lldp_fd;
-        fdset[1].events = POLLIN;
-        if (0 > poll(fdset, 2, -1))
+        /* After reconnecting, ifindex may have changed, so re-get it. */
+        interface->ifindex = getIfIndex(interface->interface->name);
+        if (-1 == interface->ifindex)
         {
-            PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] *Interface %s receive thread* poll() returned with errno=%d (%s)\n",
-                                        interface->interface->name, errno, strerror(errno));
-            break;
+            continue;
         }
 
-        for (i = 0; i < ARRAY_SIZE(fdset); i++)
-        {
-            if (fdset[i].revents & (POLLIN|POLLERR))
-            {
-                uint8_t packet[MAX_NETWORK_SEGMENT_SIZE];
-                ssize_t recv_length;
+        memset(&multicast_request, 0, sizeof(multicast_request));
+        multicast_request.mr_ifindex = interface->ifindex;
+        multicast_request.mr_alen = 6;
 
-                recv_length = recv(fdset[i].fd, packet, sizeof(packet), MSG_DONTWAIT);
-                if (recv_length < 0)
+        interface->sock_1905_fd = openPacketSocket(interface->ifindex, ETHERTYPE_1905);
+        if (-1 == interface->sock_1905_fd)
+        {
+            PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] socket('%s' protocol 1905) returned with errno=%d (%s) while opening a RAW socket\n",
+                                        interface->interface->name, errno, strerror(errno));
+            continue;
+        }
+
+        /* Add the AL address to this interface */
+        multicast_request.mr_type = PACKET_MR_UNICAST;
+        memcpy(multicast_request.mr_address, interface->al_mac_address, 6);
+        if (-1 == setsockopt(interface->sock_1905_fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &multicast_request, sizeof(multicast_request)))
+        {
+            PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] Failed to add AL MAC address to interface '%s' with errno=%d (%s)\n",
+                                        interface->interface->name, errno, strerror(errno));
+        }
+
+        /* Add the 1905 multicast address to this interface */
+        multicast_request.mr_type = PACKET_MR_MULTICAST;
+        memcpy(multicast_request.mr_address, MCAST_1905, 6);
+        if (-1 == setsockopt(interface->sock_1905_fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &multicast_request, sizeof(multicast_request)))
+        {
+            PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] Failed to add 1905 multicast address to interface '%s' with errno=%d (%s)\n",
+                                        interface->interface->name, errno, strerror(errno));
+        }
+
+        /** @todo Make LLDP optional, for when lldpd is also running on the same device. */
+        interface->sock_lldp_fd = openPacketSocket(interface->ifindex, ETHERTYPE_LLDP);
+        if (-1 == interface->sock_lldp_fd)
+        {
+            PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] socket('%s' protocol 1905) returned with errno=%d (%s) while opening a RAW socket\n",
+                                        interface->interface->name, errno, strerror(errno));
+            close(interface->sock_1905_fd);
+            continue;
+        }
+
+        /* Add the LLDP multicast address to this interface */
+        multicast_request.mr_type = PACKET_MR_MULTICAST;
+        memcpy(multicast_request.mr_address, MCAST_LLDP, 6);
+        if (-1 == setsockopt(interface->sock_lldp_fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &multicast_request, sizeof(multicast_request)))
+        {
+            PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] Failed to add LLDP multicast address to interface '%s' with errno=%d (%s)\n",
+                                        interface->interface->name, errno, strerror(errno));
+        }
+
+
+        PLATFORM_PRINTF_DEBUG_DETAIL("Starting recv on %s\n", interface->interface->name);
+        /** @todo move to libevent instead of threads + poll */
+        bool running = true;
+        while(running)
+        {
+            struct pollfd fdset[2];
+            size_t i;
+
+            memset((void*)fdset, 0, sizeof(fdset));
+
+            fdset[0].fd = interface->sock_1905_fd;
+            fdset[0].events = POLLIN;
+            fdset[1].fd = interface->sock_lldp_fd;
+            fdset[1].events = POLLIN;
+            if (0 > poll(fdset, 2, -1))
+            {
+                PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] *Interface %s receive thread* poll() returned with errno=%d (%s)\n",
+                                            interface->interface->name, errno, strerror(errno));
+                break;
+            }
+
+            for (i = 0; i < ARRAY_SIZE(fdset); i++)
+            {
+                if (fdset[i].revents & (POLLIN|POLLERR))
                 {
-                    if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+                    uint8_t packet[MAX_NETWORK_SEGMENT_SIZE];
+                    ssize_t recv_length;
+
+                    recv_length = recv(fdset[i].fd, packet, sizeof(packet), MSG_DONTWAIT);
+                    if (recv_length < 0)
                     {
-                        PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] *Interface %s receive thread* recv failed with errno=%d (%s) \n",
-                                                    interface->interface->name, errno, strerror(errno));
-                        /* Probably not recoverable. */
-                        close(interface->sock_1905_fd);
-                        close(interface->sock_lldp_fd);
-                        free(interface);
-                        return NULL;
+                        if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+                        {
+                            PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] *Interface %s receive thread* recv failed with errno=%d (%s) \n",
+                                                        interface->interface->name, errno, strerror(errno));
+                            /* Probably not recoverable. */
+                            running = false;
+                        }
                     }
-                }
-                else
-                {
-                    handlePacket(interface, packet, (size_t)recv_length);
+                    else
+                    {
+                        handlePacket(interface, packet, (size_t)recv_length);
+                    }
                 }
             }
         }
+        close(interface->sock_1905_fd);
+        close(interface->sock_lldp_fd);
     }
 
     // Unreachable
