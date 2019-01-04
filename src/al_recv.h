@@ -60,6 +60,7 @@
 
 #include "1905_cmdus.h"
 #include "lldp_payload.h"
+#include "datamodel.h"
 
 // This function does "whatever needs to be done" as a result of receiving a
 // CMDU: for example, some CMDU trigger a response, others are used to update
@@ -92,12 +93,12 @@
 #define PROCESS_CMDU_KO                     (0)
 #define PROCESS_CMDU_OK                     (1)
 #define PROCESS_CMDU_OK_TRIGGER_AP_SEARCH   (2)
-uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8_t *src_addr, uint8_t queue_id);
+uint8_t process1905Cmdu(struct CMDU *c, struct interface *receiving_interface, uint8_t *src_addr, uint8_t queue_id);
 
 // Call this function when receiving an LLPD "bridge discovery" message so that
 // the topology database is properly updated.
 //
-uint8_t processLlpdPayload(struct PAYLOAD *payload, uint8_t *receiving_interface_addr);
+uint8_t processLlpdPayload(struct PAYLOAD *payload, struct interface *receiving_interface);
 
 // Call this function when receiving an ALME REQUEST message. It will take
 // action depending on the actual contents of this message (ie. "shut down an

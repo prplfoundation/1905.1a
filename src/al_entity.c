@@ -839,13 +839,7 @@ uint8_t start1905AL()
     PLATFORM_PRINTF_DEBUG_DETAIL("Registering packet arrival event for each interface...\n");
     dlist_for_each(interface, local_device->interfaces, l)
     {
-        struct event1905Packet aux;
-
-        aux.interface_name = interface->name;
-        memcpy(aux.interface_mac_address, interface->addr, 6);
-        memcpy(aux.al_mac_address,        local_device->al_mac_addr, 6);
-
-        if (0 == PLATFORM_REGISTER_QUEUE_EVENT(queue_id, PLATFORM_QUEUE_EVENT_NEW_1905_PACKET, &aux))
+        if (0 == PLATFORM_REGISTER_QUEUE_EVENT(queue_id, PLATFORM_QUEUE_EVENT_NEW_1905_PACKET, interface))
         {
             PLATFORM_PRINTF_DEBUG_ERROR("Could not register callback for 1905 packets in interface %s\n", interface->name);
             return AL_ERROR_OS;
@@ -999,30 +993,22 @@ uint8_t start1905AL()
                 uint8_t  src_addr[6];
                 uint16_t ether_type;
 
-                uint8_t  receiving_interface_addr[6];
-                const char  *receiving_interface_name;
+                struct interface *receiving_interface;
 
                 // The first six bytes of the message payload contain the MAC
                 // address of the interface where the packet was received
                 //
-                _EnB(&p, receiving_interface_addr, 6);
+                _EnB(&p, &receiving_interface, sizeof(receiving_interface));
 
-                receiving_interface_name = DMmacToInterfaceName(receiving_interface_addr);
-                if (NULL == receiving_interface_name)
-                {
-                    PLATFORM_PRINTF_DEBUG_ERROR("A packet was receiving on MAC %02x:%02x:%02x:%02x:%02x:%02x, which does not match any local interface\n",receiving_interface_addr[0], receiving_interface_addr[1], receiving_interface_addr[2], receiving_interface_addr[3], receiving_interface_addr[4], receiving_interface_addr[5]);
-                    continue;
-                }
-
-                x = PLATFORM_GET_1905_INTERFACE_INFO(receiving_interface_name);
+                x = PLATFORM_GET_1905_INTERFACE_INFO(receiving_interface->name);
                 if (NULL == x)
                 {
-                    PLATFORM_PRINTF_DEBUG_WARNING("Could not retrieve info of interface %s\n", receiving_interface_name);
+                    PLATFORM_PRINTF_DEBUG_WARNING("Could not retrieve info of interface %s\n", receiving_interface->name);
                     continue;
                 }
                 if (0 == x->is_secured)
                 {
-                    PLATFORM_PRINTF_DEBUG_WARNING("This interface (%s) is not secured. No packets should be received. Ignoring...\n", receiving_interface_name);
+                    PLATFORM_PRINTF_DEBUG_WARNING("This interface (%s) is not secured. No packets should be received. Ignoring...\n", receiving_interface->name);
                     free_1905_INTERFACE_INFO(x);
                     continue;
                 }
@@ -1037,7 +1023,7 @@ uint8_t start1905AL()
                 _EnB(&q, src_addr, 6);
                 _E2B(&q, &ether_type);
 
-                PLATFORM_PRINTF_DEBUG_DETAIL("New queue message arrived: packet captured on interface %s\n", receiving_interface_name);
+                PLATFORM_PRINTF_DEBUG_DETAIL("New queue message arrived: packet captured on interface %s\n", receiving_interface->name);
                 PLATFORM_PRINTF_DEBUG_DETAIL("    Dst address: %02x:%02x:%02x:%02x:%02x:%02x\n", dst_addr[0], dst_addr[1], dst_addr[2], dst_addr[3], dst_addr[4], dst_addr[5]);
                 PLATFORM_PRINTF_DEBUG_DETAIL("    Src address: %02x:%02x:%02x:%02x:%02x:%02x\n", src_addr[0], src_addr[1], src_addr[2], src_addr[3], src_addr[4], src_addr[5]);
                 PLATFORM_PRINTF_DEBUG_DETAIL("    Ether type : 0x%04x\n", ether_type);
@@ -1061,7 +1047,7 @@ uint8_t start1905AL()
                             PLATFORM_PRINTF_DEBUG_DETAIL("LLDP message contents:\n");
                             visit_lldp_PAYLOAD_structure(payload, print_callback, PLATFORM_PRINTF_DEBUG_DETAIL, "");
 
-                            processLlpdPayload(payload, receiving_interface_addr);
+                            processLlpdPayload(payload, receiving_interface);
 
                             free_lldp_PAYLOAD_structure(payload);
                         }
@@ -1089,7 +1075,8 @@ uint8_t start1905AL()
                                  1 == _checkDuplicates(src_addr, c)
                                )
                             {
-                               PLATFORM_PRINTF_DEBUG_WARNING("Receiving on %s a CMDU which is a duplicate of a previous one (mid = %d). Discarding...\n", receiving_interface_name, c->message_id);
+                               PLATFORM_PRINTF_DEBUG_WARNING("Receiving on %s a CMDU which is a duplicate of a previous one (mid = %d). Discarding...\n",
+                                                             receiving_interface->name, c->message_id);
                             }
                             else
                             {
@@ -1100,7 +1087,7 @@ uint8_t start1905AL()
 
                                 // Process the message on the local node
                                 //
-                                res = process1905Cmdu(c, receiving_interface_addr, src_addr, queue_id);
+                                res = process1905Cmdu(c, receiving_interface, src_addr, queue_id);
                                 if (PROCESS_CMDU_OK_TRIGGER_AP_SEARCH == res)
                                 {
                                     _triggerAPSearchProcess();
@@ -1110,7 +1097,7 @@ uint8_t start1905AL()
                                 // message on the rest of interfaces (depending
                                 // on the "relayed multicast" flag
                                 //
-                                _checkForwarding(receiving_interface_addr, dst_addr, c);
+                                _checkForwarding(receiving_interface->addr, dst_addr, c);
                             }
 
                             free_1905_CMDU_structure(c);

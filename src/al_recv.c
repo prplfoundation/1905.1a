@@ -143,7 +143,7 @@ static struct wscRegistrarInfo *findWscInfoForBand(uint8_t freq_band)
 // Public functions (exported only to files in this same folder)
 ////////////////////////////////////////////////////////////////////////////////
 
-uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8_t *src_addr, uint8_t queue_id)
+uint8_t process1905Cmdu(struct CMDU *c, struct interface *receiving_interface, uint8_t *src_addr, uint8_t queue_id)
 {
     if (NULL == c)
     {
@@ -178,7 +178,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             memcpy(al_mac_address, dummy_mac_address, 6);
             memcpy(mac_address,    dummy_mac_address, 6);
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_TOPOLOGY_DISCOVERY (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_TOPOLOGY_DISCOVERY (%s)\n", receiving_interface->name);
 
             // We need to update the data model structure, which keeps track
             // of local interfaces, neighbors, and neighbors' interfaces, and
@@ -239,7 +239,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
 
             // Next, update the data model
             //
-            if (1 == (first_discovery = DMupdateDiscoveryTimeStamps(receiving_interface_addr, al_mac_address, mac_address, TIMESTAMP_TOPOLOGY_DISCOVERY, &ellapsed)))
+            if (1 == (first_discovery = DMupdateDiscoveryTimeStamps(receiving_interface, al_mac_address, mac_address, TIMESTAMP_TOPOLOGY_DISCOVERY, &ellapsed)))
             {
 #ifdef SPEED_UP_DISCOVERY
                 // If the data model did not contain an entry for this neighbor,
@@ -251,7 +251,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
                 //
                 PLATFORM_PRINTF_DEBUG_DETAIL("Is this a new node? Re-scheduling a Topology Discovery so that he 'discovers' us\n");
 
-                if (0 == send1905TopologyDiscoveryPacket(DMmacToInterfaceName(receiving_interface_addr), getNextMid()))
+                if (0 == send1905TopologyDiscoveryPacket(receiving_interface->name, getNextMid()))
                 {
                     PLATFORM_PRINTF_DEBUG_WARNING("Could not send 1905 topology discovery message\n");
                 }
@@ -281,7 +281,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
                 break;
             }
 
-            if ( 0 == send1905TopologyQueryPacket(DMmacToInterfaceName(receiving_interface_addr), getNextMid(), al_mac_address))
+            if ( 0 == send1905TopologyQueryPacket(receiving_interface->name, getNextMid(), al_mac_address))
             {
                 PLATFORM_PRINTF_DEBUG_WARNING("Could not send 'topology query' message\n");
             }
@@ -305,7 +305,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
 
             memcpy(al_mac_address, dummy_mac_address, 6);
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_TOPOLOGY_NOTIFICATION (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_TOPOLOGY_NOTIFICATION (%s)\n", receiving_interface->name);
 
             if (NULL == c->list_of_TLVs)
             {
@@ -361,7 +361,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             //
              PLATFORM_PRINTF_DEBUG_DETAIL("Is this a new node? Re-scheduling a Topology Discovery so that he 'discovers' us\n");
 
-             if (0 == send1905TopologyDiscoveryPacket(DMmacToInterfaceName(receiving_interface_addr), getNextMid()))
+             if (0 == send1905TopologyDiscoveryPacket(receiving_interface->name, getNextMid()))
              {
                  PLATFORM_PRINTF_DEBUG_WARNING("Could not send 1905 topology discovery message\n");
              }
@@ -372,7 +372,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             // This is because a "topology notification" *always* implies
             // network changes and thus the device must always be (re)-queried.
             //
-            if ( 0 == send1905TopologyQueryPacket(DMmacToInterfaceName(receiving_interface_addr), getNextMid(), al_mac_address))
+            if ( 0 == send1905TopologyQueryPacket(receiving_interface->name, getNextMid(), al_mac_address))
             {
                 PLATFORM_PRINTF_DEBUG_WARNING("Could not send 'topology query' message\n");
             }
@@ -388,7 +388,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             uint8_t *dst_mac;
             uint8_t *p;
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_TOPOLOGY_QUERY (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_TOPOLOGY_QUERY (%s)\n", receiving_interface->name);
 
             // We must send the response to the AL MAC of the node who sent the
             // query, however, this AL MAC is *not* contained in the query.
@@ -412,7 +412,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
                 dst_mac = p;
             }
 
-            if ( 0 == send1905TopologyResponsePacket(DMmacToInterfaceName(receiving_interface_addr), c->message_id, dst_mac))
+            if ( 0 == send1905TopologyResponsePacket(receiving_interface->name, c->message_id, dst_mac))
             {
                 PLATFORM_PRINTF_DEBUG_WARNING("Could not send 'topology query' message\n");
             }
@@ -449,7 +449,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
 
             uint8_t xi, yi, zi, qi, ri;
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_TOPOLOGY_RESPONSE (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_TOPOLOGY_RESPONSE (%s)\n", receiving_interface->name);
 
             if (NULL == c->list_of_TLVs)
             {
@@ -659,11 +659,11 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             // And finally, send other queries to the device so that we can
             // keep updating the database once the responses are received
             //
-            if ( 0 == send1905MetricsQueryPacket(DMmacToInterfaceName(receiving_interface_addr), getNextMid(), info->al_mac_address))
+            if ( 0 == send1905MetricsQueryPacket(receiving_interface->name, getNextMid(), info->al_mac_address))
             {
                 PLATFORM_PRINTF_DEBUG_WARNING("Could not send 'metrics query' message\n");
             }
-            if ( 0 == send1905HighLayerQueryPacket(DMmacToInterfaceName(receiving_interface_addr), getNextMid(), info->al_mac_address))
+            if ( 0 == send1905HighLayerQueryPacket(receiving_interface->name, getNextMid(), info->al_mac_address))
             {
                 PLATFORM_PRINTF_DEBUG_WARNING("Could not send 'high layer query' message\n");
             }
@@ -674,7 +674,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
                     // There is *at least* one generic inteface in the response,
                     // thus query for more information
                     //
-                    if ( 0 == send1905GenericPhyQueryPacket(DMmacToInterfaceName(receiving_interface_addr), getNextMid(), info->al_mac_address))
+                    if ( 0 == send1905GenericPhyQueryPacket(receiving_interface->name, getNextMid(), info->al_mac_address))
                     {
                         PLATFORM_PRINTF_DEBUG_WARNING("Could not send 'generic phy query' message\n");
                     }
@@ -741,7 +741,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
                             continue;
                         }
 
-                        if ( 0 == send1905TopologyQueryPacket(DMmacToInterfaceName(receiving_interface_addr), getNextMid(), z[i]->neighbors[j].mac_address))
+                        if ( 0 == send1905TopologyQueryPacket(receiving_interface->name, getNextMid(), z[i]->neighbors[j].mac_address))
                         {
                             PLATFORM_PRINTF_DEBUG_WARNING("Could not send 'topology query' message\n");
                         }
@@ -753,7 +753,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
         }
         case CMDU_TYPE_VENDOR_SPECIFIC:
         {
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_VENDOR_SPECIFIC (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_VENDOR_SPECIFIC (%s)\n", receiving_interface->name);
 
             // TODO: Implement vendor specific hooks. Maybe, for now, we should
             // simply call a new "PLATFORM_VENDOR_SPECIFIC_CALLBACK()" function
@@ -770,7 +770,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
 
             struct linkMetricQueryTLV *t;
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_LINK_METRIC_QUERY (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_LINK_METRIC_QUERY (%s)\n", receiving_interface->name);
 
             if (NULL == c->list_of_TLVs)
             {
@@ -869,7 +869,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
                 dst_mac = al_mac;
             }
 
-            if ( 0 == send1905MetricsResponsePacket(DMmacToInterfaceName(receiving_interface_addr), c->message_id, dst_mac, t->destination, t->specific_neighbor, t->link_metrics_type))
+            if ( 0 == send1905MetricsResponsePacket(receiving_interface->name, c->message_id, dst_mac, t->destination, t->specific_neighbor, t->link_metrics_type))
             {
                 PLATFORM_PRINTF_DEBUG_WARNING("Could not send 'metrics response' message\n");
             }
@@ -890,7 +890,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             struct tlv *p;
             uint8_t  i;
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_LINK_METRIC_RESPONSE (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_LINK_METRIC_RESPONSE (%s)\n", receiving_interface->name);
 
             if (NULL == c->list_of_TLVs)
             {
@@ -974,7 +974,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             freq_band_is_present     = 0;
             memcpy(al_mac_address, dummy_mac_address, 6);
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_AP_AUTOCONFIGURATION_SEARCH (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_AP_AUTOCONFIGURATION_SEARCH (%s)\n", receiving_interface->name);
 
             if (NULL == c->list_of_TLVs)
             {
@@ -1096,7 +1096,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
                 {
                     PLATFORM_PRINTF_DEBUG_DETAIL("Local device is registrar, and has the requested freq band. Sending response...\n");
 
-                    if ( 0 == send1905APAutoconfigurationResponsePacket(DMmacToInterfaceName(receiving_interface_addr), c->message_id, al_mac_address, freq_band,
+                    if ( 0 == send1905APAutoconfigurationResponsePacket(receiving_interface->name, c->message_id, al_mac_address, freq_band,
                                                                         searched_service_controller))
                     {
                         PLATFORM_PRINTF_DEBUG_WARNING("Could not send 'AP autoconfiguration response' message\n");
@@ -1135,7 +1135,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
 
             struct alDevice *sender_device;
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_AP_AUTOCONFIGURATION_RESPONSE (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_AP_AUTOCONFIGURATION_RESPONSE (%s)\n", receiving_interface->name);
 
             if (NULL == c->list_of_TLVs)
             {
@@ -1272,7 +1272,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
                                 dst_mac = sender_device->al_mac_addr;
                             }
 
-                            if ( 0 == send1905APAutoconfigurationWSCM1Packet(DMmacToInterfaceName(receiving_interface_addr), getNextMid(),
+                            if ( 0 == send1905APAutoconfigurationWSCM1Packet(receiving_interface->name, getNextMid(),
                                                                              dst_mac, radio->wsc_info->m1, radio->wsc_info->m1_len,
                                                                              radio, sender_is_controller))
                             {
@@ -1304,7 +1304,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             // If it is M1, send an M2 response.
             // If it is M2, apply the received configuration.
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_AP_AUTOCONFIGURATION_WSC (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_AP_AUTOCONFIGURATION_WSC (%s)\n", receiving_interface->name);
 
             if (NULL == c->list_of_TLVs)
             {
@@ -1484,7 +1484,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
                 }
 
 
-                if ( 0 == send1905APAutoconfigurationWSCM2Packet(DMmacToInterfaceName(receiving_interface_addr), getNextMid(),
+                if ( 0 == send1905APAutoconfigurationWSCM2Packet(receiving_interface->name, getNextMid(),
                                                                  sender_device->al_mac_addr, m2_list,
                                                                  send_radio_identifier ? ap_radio_basic_capabilities->radio_uid : NULL,
                                                                  send_radio_identifier))
@@ -1502,7 +1502,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
         }
         case CMDU_TYPE_AP_AUTOCONFIGURATION_RENEW:
         {
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_AP_AUTOCONFIGURATION_RENEW (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_AP_AUTOCONFIGURATION_RENEW (%s)\n", receiving_interface->name);
             // TODO
 
             break;
@@ -1536,7 +1536,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             wifi_data_is_present = 0;
             memcpy(al_mac_address, dummy_mac_address, 6);
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_PUSH_BUTTON_EVENT_NOTIFICATION (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_PUSH_BUTTON_EVENT_NOTIFICATION (%s)\n", receiving_interface->name);
 
             if (NULL == c->list_of_TLVs)
             {
@@ -1683,7 +1683,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
         }
         case CMDU_TYPE_PUSH_BUTTON_JOIN_NOTIFICATION:
         {
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_PUSH_BUTTON_JOIN_NOTIFICATION (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_PUSH_BUTTON_JOIN_NOTIFICATION (%s)\n", receiving_interface->name);
             // TODO: Somehow "signal" upper layers (?)
 
             break;
@@ -1700,7 +1700,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             uint8_t *dst_mac;
             uint8_t *p;
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_GENERIC_PHY_QUERY (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_GENERIC_PHY_QUERY (%s)\n", receiving_interface->name);
 
             // We must send the response to the AL MAC of the node who sent the
             // query, however, this AL MAC is *not* contained in the query.
@@ -1724,7 +1724,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
                 dst_mac = p;
             }
 
-            if ( 0 == send1905GenericPhyResponsePacket(DMmacToInterfaceName(receiving_interface_addr), c->message_id, dst_mac))
+            if ( 0 == send1905GenericPhyResponsePacket(receiving_interface->name, c->message_id, dst_mac))
             {
                 PLATFORM_PRINTF_DEBUG_WARNING("Could not send 'topology query' message\n");
             }
@@ -1747,7 +1747,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             struct tlv *p;
             uint8_t  i;
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_GENERIC_PHY_RESPONSE (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_GENERIC_PHY_RESPONSE (%s)\n", receiving_interface->name);
 
             if (NULL == c->list_of_TLVs)
             {
@@ -1832,7 +1832,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             uint8_t *dst_mac;
             uint8_t *al_mac;
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_HIGHER_LAYER_QUERY (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_HIGHER_LAYER_QUERY (%s)\n", receiving_interface->name);
 
             // We must send the response to the AL MAC of the node who sent the
             // query, however, this AL MAC is *not* contained in the query.
@@ -1856,7 +1856,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
                 dst_mac = al_mac;
             }
 
-            if ( 0 == send1905HighLayerResponsePacket(DMmacToInterfaceName(receiving_interface_addr), c->message_id, dst_mac))
+            if ( 0 == send1905HighLayerResponsePacket(receiving_interface->name, c->message_id, dst_mac))
             {
                 PLATFORM_PRINTF_DEBUG_WARNING("Could not send 'high layer response' message\n");
             }
@@ -1886,7 +1886,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             struct tlv *p;
             uint8_t  i;
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_HIGHER_LAYER_RESPONSE (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_HIGHER_LAYER_RESPONSE (%s)\n", receiving_interface->name);
 
             if (NULL == c->list_of_TLVs)
             {
@@ -2002,7 +2002,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             struct tlv *p;
             uint8_t  i;
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_INTERFACE_POWER_CHANGE_REQUEST (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_INTERFACE_POWER_CHANGE_REQUEST (%s)\n", receiving_interface->name);
 
             if (NULL == c->list_of_TLVs)
             {
@@ -2107,7 +2107,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
             struct tlv *p;
             uint8_t  i;
 
-            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_INTERFACE_POWER_CHANGE_RESPONSE (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+            PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_INTERFACE_POWER_CHANGE_RESPONSE (%s)\n", receiving_interface->name);
 
             if (NULL == c->list_of_TLVs)
             {
@@ -2167,7 +2167,7 @@ uint8_t process1905Cmdu(struct CMDU *c, uint8_t *receiving_interface_addr, uint8
     return PROCESS_CMDU_OK;
 }
 
-uint8_t processLlpdPayload(struct PAYLOAD *payload, uint8_t *receiving_interface_addr)
+uint8_t processLlpdPayload(struct PAYLOAD *payload, struct interface *receiving_interface)
 {
     struct tlv *p;
     uint8_t  i;
@@ -2185,7 +2185,7 @@ uint8_t processLlpdPayload(struct PAYLOAD *payload, uint8_t *receiving_interface
         return 0;
     }
 
-    PLATFORM_PRINTF_DEBUG_INFO("<-- LLDP BRIDGE DISCOVERY (%s)\n", DMmacToInterfaceName(receiving_interface_addr));
+    PLATFORM_PRINTF_DEBUG_INFO("<-- LLDP BRIDGE DISCOVERY (%s)\n", receiving_interface->name);
 
     // We need to update the data model structure, which keeps track
     // of local interfaces, neighbors, and neighbors' interfaces, and
@@ -2250,7 +2250,7 @@ uint8_t processLlpdPayload(struct PAYLOAD *payload, uint8_t *receiving_interface
 
     // Finally, update the data model
     //
-    if (0 == DMupdateDiscoveryTimeStamps(receiving_interface_addr, al_mac_address, mac_address, TIMESTAMP_BRIDGE_DISCOVERY, NULL))
+    if (0 == DMupdateDiscoveryTimeStamps(receiving_interface, al_mac_address, mac_address, TIMESTAMP_BRIDGE_DISCOVERY, NULL))
     {
         PLATFORM_PRINTF_DEBUG_WARNING("Problems updating data model with topology response TLVs\n");
         return 0;

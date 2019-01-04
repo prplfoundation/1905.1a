@@ -59,6 +59,7 @@
 #define _AL_DATAMODEL_H_
 
 #include "1905_tlvs.h"
+#include "datamodel.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 // Data model initialization and general functions
@@ -208,7 +209,7 @@ void DMfreeListOfLinksWithNeighbor(uint8_t (*p)[6], char **interfaces, uint8_t l
 //
 #define TIMESTAMP_TOPOLOGY_DISCOVERY  0
 #define TIMESTAMP_BRIDGE_DISCOVERY    1
-uint8_t DMupdateDiscoveryTimeStamps(uint8_t *receiving_interface_addr, uint8_t *al_mac_address, uint8_t *mac_address, uint8_t timestamp_type, uint32_t *ellapsed);
+uint8_t DMupdateDiscoveryTimeStamps(struct interface *receiving_interface, uint8_t *al_mac_address, uint8_t *mac_address, uint8_t timestamp_type, uint32_t *ellapsed);
 
 // These functions returns "1" or "0" according to the "bridge flag" rules
 // detailed in "IEEE Std 1905.1-2013 Section 8.1"

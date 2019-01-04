@@ -161,15 +161,7 @@ uint8_t PLATFORM_CREATE_QUEUE(const char *name);
 //       A new event is generated every time a 1905 packet arrives on the
 //       interface provided (see below).
 //
-//       'data' is interpreted as a pointer to a "struct event1905Packet" which
-//       contains the following fields:
-//
-//         - 'interface_name' ---------> pointer to a string containing the name
-//                                       of the interface (ex: "eth0")
-//
-//         - 'interface_mac_address' --> MAC addres of 'interface_name'
-//
-//         - 'al_mac_address' ---------> MAC address of the 1905 AL entity
+//       'data' is interpreted as a pointer to a "struct interface".
 //
 //       When the event takes place, the message that is inserted in the queue
 //       has the following format:
@@ -415,12 +407,6 @@ uint8_t PLATFORM_CREATE_QUEUE(const char *name);
 
 #define MAX_TIMER_TOKEN (1000)
 
-struct event1905Packet
-{
-    const char     *interface_name;
-    uint8_t     interface_mac_address[6];
-    uint8_t     al_mac_address[6];
-};
 struct eventTimeOut
 {
     uint32_t    timeout_ms;

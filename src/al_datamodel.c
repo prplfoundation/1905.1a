@@ -478,9 +478,8 @@ void DMfreeListOfLinksWithNeighbor(uint8_t (*p)[6], char **interfaces, uint8_t l
     return;
 }
 
-uint8_t DMupdateDiscoveryTimeStamps(uint8_t *receiving_interface_addr, uint8_t *al_mac_address, uint8_t *mac_address, uint8_t timestamp_type, uint32_t *ellapsed)
+uint8_t DMupdateDiscoveryTimeStamps(struct interface *receiving_interface, uint8_t *al_mac_address, uint8_t *mac_address, uint8_t timestamp_type, uint32_t *ellapsed)
 {
-    struct interface *local_interface;
     struct interface *neighbor_interface;
     struct alDevice *neighbor;
 
@@ -490,15 +489,9 @@ uint8_t DMupdateDiscoveryTimeStamps(uint8_t *receiving_interface_addr, uint8_t *
 
     ret = 1; /* Assume the neighbor is new */
 
-    if (NULL == receiving_interface_addr)
+    if (NULL == receiving_interface)
     {
-        PLATFORM_PRINTF_DEBUG_ERROR("Invalid 'receiving_interface_addr'\n");
-        return 0;
-    }
-
-    if (NULL == (local_interface = alDeviceFindInterface(local_device, receiving_interface_addr)))
-    {
-        PLATFORM_PRINTF_DEBUG_ERROR("The provided 'receiving_interface_addr' (%02x:%02x:%02x:%02x:%02x:%02x) does not match any local interface\n", receiving_interface_addr[0], receiving_interface_addr[1], receiving_interface_addr[2], receiving_interface_addr[3], receiving_interface_addr[4], receiving_interface_addr[5]);
+        PLATFORM_PRINTF_DEBUG_ERROR("Invalid 'receiving_interface'\n");
         return 0;
     }
 
@@ -516,9 +509,9 @@ uint8_t DMupdateDiscoveryTimeStamps(uint8_t *receiving_interface_addr, uint8_t *
         neighbor_interface = interfaceAlloc(mac_address, neighbor);
     }
 
-    for (i = 0; i < local_interface->neighbors.length; i++)
+    for (i = 0; i < receiving_interface->neighbors.length; i++)
     {
-        if (local_interface->neighbors.data[i]->owner == neighbor)
+        if (receiving_interface->neighbors.data[i]->owner == neighbor)
         {
             // The neighbor exists! We don't need to do anything special.
             ret = 2;
@@ -527,11 +520,11 @@ uint8_t DMupdateDiscoveryTimeStamps(uint8_t *receiving_interface_addr, uint8_t *
     if (ret != 2)
     {
         // The neighbor didn't exist as a neighbor to this interface, so add it now.
-        interfaceAddNeighbor(local_interface, neighbor_interface);
+        interfaceAddNeighbor(receiving_interface, neighbor_interface);
     }
 
     PLATFORM_PRINTF_DEBUG_DETAIL("New discovery timestamp update:\n");
-    PLATFORM_PRINTF_DEBUG_DETAIL("  - local_interface      : " MACSTR "\n", MAC2STR(receiving_interface_addr));
+    PLATFORM_PRINTF_DEBUG_DETAIL("  - local_interface      : " MACSTR "\n", MAC2STR(receiving_interface->addr));
     PLATFORM_PRINTF_DEBUG_DETAIL("  - 1905 neighbor AL MAC : " MACSTR "\n", MAC2STR(al_mac_address));
     PLATFORM_PRINTF_DEBUG_DETAIL("  - remote interface MAC : " MACSTR "\n", MAC2STR(mac_address));
 

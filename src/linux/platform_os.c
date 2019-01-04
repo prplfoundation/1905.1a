@@ -84,7 +84,7 @@
 
 /** @brief Linux-specific per-interface data. */
 struct linux_interface_info {
-    struct interface interface;
+    struct interface *interface;
 
     /** @brief Index of the interface, to be used for sockaddr_ll::sll_ifindex. */
     int ifindex;
@@ -115,10 +115,11 @@ static pthread_mutex_t queues_id_mutex          = PTHREAD_MUTEX_INITIALIZER;
 
 // *********** Receiving packets ********************************************
 
-static void handlePacket(uint8_t queue_id, const uint8_t *packet, size_t packet_len, mac_address interface_mac_address)
+static void handlePacket(struct linux_interface_info *interface, const uint8_t *packet, size_t packet_len)
 {
     uint8_t   message[9+MAX_NETWORK_SEGMENT_SIZE];
     uint16_t  message_len;
+    uint16_t  offset;
     uint8_t   message_len_msb;
     uint8_t   message_len_lsb;
 
@@ -134,7 +135,7 @@ static void handlePacket(uint8_t queue_id, const uint8_t *packet, size_t packet_
     // need to follow the "message format" defines in the documentation of
     // function 'PLATFORM_REGISTER_QUEUE_EVENT()'
     //
-    message_len = packet_len + 6;
+    message_len = packet_len + sizeof (interface->interface);
 #if _HOST_IS_LITTLE_ENDIAN_ == 1
     message_len_msb = *(((uint8_t *)&message_len)+1);
     message_len_lsb = *(((uint8_t *)&message_len)+0);
@@ -146,14 +147,16 @@ static void handlePacket(uint8_t queue_id, const uint8_t *packet, size_t packet_
     message[0] = PLATFORM_QUEUE_EVENT_NEW_1905_PACKET;
     message[1] = message_len_msb;
     message[2] = message_len_lsb;
-    memcpy(&message[3], interface_mac_address, 6);
-    memcpy(&message[9], packet, packet_len);
+    offset = 3;
+    memcpy(&message[offset], &interface->interface, sizeof(interface->interface));
+    offset += sizeof(interface->interface);
+    memcpy(&message[offset], packet, packet_len);
 
     // Now simply send the message.
     //
     PLATFORM_PRINTF_DEBUG_DETAIL("[PLATFORM] *Recv thread* Sending %d bytes to queue (0x%02x, 0x%02x, 0x%02x, ...)\n", 3+message_len, message[0], message[1], message[2]);
 
-    if (0 == sendMessageToAlQueue(queue_id, message, 3 + message_len))
+    if (0 == sendMessageToAlQueue(interface->queue_id, message, 3 + message_len))
     {
         PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] *Receive thread* Error sending message to queue\n");
         return;
@@ -177,7 +180,7 @@ static void *recvLoopThread(void *p)
         return NULL;
     }
 
-    interface->ifindex = getIfIndex(interface->interface.name);
+    interface->ifindex = getIfIndex(interface->interface->name);
     if (-1 == interface->ifindex)
     {
         free(interface);
@@ -192,7 +195,7 @@ static void *recvLoopThread(void *p)
     if (-1 == interface->sock_1905_fd)
     {
         PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] socket('%s' protocol 1905) returned with errno=%d (%s) while opening a RAW socket\n",
-                                    interface->interface.name, errno, strerror(errno));
+                                    interface->interface->name, errno, strerror(errno));
         free(interface);
         return NULL;
     }
@@ -203,7 +206,7 @@ static void *recvLoopThread(void *p)
     if (-1 == setsockopt(interface->sock_1905_fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &multicast_request, sizeof(multicast_request)))
     {
         PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] Failed to add AL MAC address to interface '%s' with errno=%d (%s)\n",
-                                    interface->interface.name, errno, strerror(errno));
+                                    interface->interface->name, errno, strerror(errno));
     }
 
     /* Add the 1905 multicast address to this interface */
@@ -212,7 +215,7 @@ static void *recvLoopThread(void *p)
     if (-1 == setsockopt(interface->sock_1905_fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &multicast_request, sizeof(multicast_request)))
     {
         PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] Failed to add 1905 multicast address to interface '%s' with errno=%d (%s)\n",
-                                    interface->interface.name, errno, strerror(errno));
+                                    interface->interface->name, errno, strerror(errno));
     }
 
     /** @todo Make LLDP optional, for when lldpd is also running on the same device. */
@@ -220,7 +223,7 @@ static void *recvLoopThread(void *p)
     if (-1 == interface->sock_lldp_fd)
     {
         PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] socket('%s' protocol 1905) returned with errno=%d (%s) while opening a RAW socket\n",
-                                    interface->interface.name, errno, strerror(errno));
+                                    interface->interface->name, errno, strerror(errno));
         close(interface->sock_1905_fd);
         free(interface);
         return NULL;
@@ -232,11 +235,11 @@ static void *recvLoopThread(void *p)
     if (-1 == setsockopt(interface->sock_lldp_fd, SOL_PACKET, PACKET_ADD_MEMBERSHIP, &multicast_request, sizeof(multicast_request)))
     {
         PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] Failed to add LLDP multicast address to interface '%s' with errno=%d (%s)\n",
-                                    interface->interface.name, errno, strerror(errno));
+                                    interface->interface->name, errno, strerror(errno));
     }
 
 
-    PLATFORM_PRINTF_DEBUG_DETAIL("Starting recv on %s\n", interface->interface.name);
+    PLATFORM_PRINTF_DEBUG_DETAIL("Starting recv on %s\n", interface->interface->name);
     /** @todo move to libevent instead of threads + poll */
     while(1)
     {
@@ -252,7 +255,7 @@ static void *recvLoopThread(void *p)
         if (0 > poll(fdset, 2, -1))
         {
             PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] *Interface %s receive thread* poll() returned with errno=%d (%s)\n",
-                                        interface->interface.name, errno, strerror(errno));
+                                        interface->interface->name, errno, strerror(errno));
             break;
         }
 
@@ -269,7 +272,7 @@ static void *recvLoopThread(void *p)
                     if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
                     {
                         PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] *Interface %s receive thread* recv failed with errno=%d (%s) \n",
-                                                    interface->interface.name, errno, strerror(errno));
+                                                    interface->interface->name, errno, strerror(errno));
                         /* Probably not recoverable. */
                         close(interface->sock_1905_fd);
                         close(interface->sock_lldp_fd);
@@ -279,14 +282,14 @@ static void *recvLoopThread(void *p)
                 }
                 else
                 {
-                    handlePacket(interface->queue_id, packet, (size_t)recv_length, interface->interface.addr);
+                    handlePacket(interface, packet, (size_t)recv_length);
                 }
             }
         }
     }
 
     // Unreachable
-    PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] *Recv thread* Exiting thread (interface %s)\n", interface->interface.name);
+    PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] *Recv thread* Exiting thread (interface %s)\n", interface->interface->name);
     close(interface->sock_1905_fd);
     close(interface->sock_lldp_fd);
     free(interface);
@@ -888,18 +891,18 @@ uint8_t PLATFORM_REGISTER_QUEUE_EVENT(uint8_t queue_id, uint8_t event_type, void
     {
         case PLATFORM_QUEUE_EVENT_NEW_1905_PACKET:
         {
-            pthread_t                         thread;
-            struct event1905Packet           *p1;
-            struct linux_interface_info      *interface;
+            pthread_t                     thread;
+            struct interface             *p1;
+            struct linux_interface_info  *interface;
 
             if (NULL == data)
             {
-                // 'data' must contain a pointer to a 'struct event1905Packet'
+                // 'data' must contain a pointer to a 'struct interface'
                 //
                 return 0;
             }
 
-            p1 = (struct event1905Packet *)data;
+            p1 = (struct interface *)data;
 
             interface = (struct linux_interface_info *)malloc(sizeof(struct linux_interface_info));
             if (NULL == interface)
@@ -910,9 +913,8 @@ uint8_t PLATFORM_REGISTER_QUEUE_EVENT(uint8_t queue_id, uint8_t event_type, void
             }
 
             interface->queue_id              = queue_id;
-            interface->interface.name        = strdup(p1->interface_name);
-            memcpy(interface->interface.addr,         p1->interface_mac_address, 6);
-            memcpy(interface->al_mac_address,         p1->al_mac_address,        6);
+            interface->interface             = p1;
+            memcpy(interface->al_mac_address, p1->owner->al_mac_addr, 6);
 
             pthread_create(&thread, NULL, recvLoopThread, (void *)interface);
 
