@@ -101,6 +101,7 @@ void alDeviceDelete(struct alDevice *alDevice)
         struct radio *radio = container_of(dlist_get_first(&alDevice->radios), struct radio, l);
         radioDelete(radio);
     }
+    dlist_remove(&alDevice->l);
     free(alDevice);
 }
 
