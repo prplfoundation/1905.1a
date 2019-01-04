@@ -752,38 +752,17 @@ struct interfaceInfo *PLATFORM_GET_1905_INTERFACE_INFO(const char *interface_nam
     // Check extensions
     if (0 == _executeInterfaceStub(interface_name, STUB_TYPE_GET_INFO, m))
     {
-        // Next, fill all the parameters we can depending on the type of interface
-        // we are dealing with:
-        // Check 'is_secured'
-        //
-        if (
-             INTERFACE_TYPE_IEEE_802_3U_FAST_ETHERNET     == m->interface_type ||
-             INTERFACE_TYPE_IEEE_802_3AB_GIGABIT_ETHERNET == m->interface_type
-           )
+        if (interface->type == interface_type_ethernet)
         {
             m->is_secured = 1;
         }
-        else if ((
-             INTERFACE_TYPE_IEEE_802_11B_2_4_GHZ == m->interface_type ||
-             INTERFACE_TYPE_IEEE_802_11G_2_4_GHZ == m->interface_type ||
-             INTERFACE_TYPE_IEEE_802_11A_5_GHZ   == m->interface_type ||
-             INTERFACE_TYPE_IEEE_802_11N_2_4_GHZ == m->interface_type ||
-             INTERFACE_TYPE_IEEE_802_11N_5_GHZ   == m->interface_type ||
-             INTERFACE_TYPE_IEEE_802_11AC_5_GHZ  == m->interface_type ||
-             INTERFACE_TYPE_IEEE_802_11AD_60_GHZ == m->interface_type ||
-             INTERFACE_TYPE_IEEE_802_11AF_GHZ    == m->interface_type
-              ) &&
-             (m->interface_type_data.ieee80211.authentication_mode == IEEE80211_AUTH_MODE_WPA    ||
-              m->interface_type_data.ieee80211.authentication_mode == IEEE80211_AUTH_MODE_WPAPSK ||
-              m->interface_type_data.ieee80211.authentication_mode == IEEE80211_AUTH_MODE_WPA2   ||
-              m->interface_type_data.ieee80211.authentication_mode == IEEE80211_AUTH_MODE_WPA2PSK)
-              )
+        if (interface->type == interface_type_wifi)
         {
-            m->is_secured = 1;
-        }
-        else
-        {
-            m->is_secured = 1;
+            struct interfaceWifi *interface_wifi = container_of(interface, struct interfaceWifi, i);
+            if (interface_wifi->bssInfo.auth_mode != auth_mode_open)
+            {
+                m->is_secured = 1;
+            }
         }
     }
 

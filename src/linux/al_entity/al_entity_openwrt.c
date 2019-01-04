@@ -67,6 +67,9 @@
 #include <datamodel.h>
 #include "../../al_datamodel.h"
 
+#include <arpa/inet.h>        // socket, AF_INTER, htons(), ...
+#include <sys/ioctl.h>        // ioctl(), SIOCGIFHWADDR
+#include <net/if.h>           // struct ifreq, IFNAZSIZE
 #include <stdio.h>   // printf
 #include <unistd.h>  // getopt
 #include <stdlib.h>  // exit
@@ -186,6 +189,11 @@ static void wireless_status_cb(struct ubus_request *req, int type, struct blob_a
     char *ucinet = NULL, *curucinet = NULL;
 
     blobmsg_for_each_attr(cur, msg, rem) {
+        char *radio = blobmsg_name(cur);
+        char *section, *hwmode, *htmode;
+        uint16_t media_type = INTERFACE_TYPE_UNKNOWN;
+        bool is11a;
+
         if (blobmsg_type(cur) != BLOBMSG_TYPE_TABLE)
             continue;
 
@@ -193,12 +201,41 @@ static void wireless_status_cb(struct ubus_request *req, int type, struct blob_a
         if (!tb[WIRELESS_CONFIG])
             continue;
         blobmsg_parse(wireless_config_policy, __WIRELESS_CONFIG_MAX, tbc, blobmsg_data(tb[WIRELESS_CONFIG]), blobmsg_len(tb[WIRELESS_CONFIG]));
-        fprintf(stderr, "found netifd radio %s, hwmode %s, htmode %s\n", blobmsg_name(cur), blobmsg_get_string(tbc[WIRELESS_CONFIG_HWMODE]), blobmsg_get_string(tbc[WIRELESS_CONFIG_HTMODE]));
+
+        hwmode = blobmsg_get_string(tbc[WIRELESS_CONFIG_HWMODE]);
+        if (strchr(hwmode, 'a'))
+            is11a = true;
+        else
+            is11a = false;
+
+        htmode = blobmsg_get_string(tbc[WIRELESS_CONFIG_HTMODE]);
+        if (htmode) {
+            if (!strncmp(htmode, "VHT", 3))
+                media_type = INTERFACE_TYPE_IEEE_802_11AC_5_GHZ;
+            else if (!strncmp(htmode, "HT", 2))
+                media_type = is11a?INTERFACE_TYPE_IEEE_802_11N_5_GHZ:INTERFACE_TYPE_IEEE_802_11N_2_4_GHZ;
+            else if (!strncmp(htmode, "NOHT", 4))
+                media_type = is11a?INTERFACE_TYPE_IEEE_802_11A_5_GHZ:INTERFACE_TYPE_IEEE_802_11G_2_4_GHZ;
+            else
+                fprintf(stderr, "unknown htmode %s\n", htmode);
+        }
+
+        /* fall-back to 802.11a/g if htmode is unset or didn't parse */
+        if (media_type == INTERFACE_TYPE_UNKNOWN)
+            media_type = is11a?INTERFACE_TYPE_IEEE_802_11A_5_GHZ:INTERFACE_TYPE_IEEE_802_11G_2_4_GHZ;
+
+        fprintf(stderr, "found netifd radio %s, hwmode %s, htmode %s\n", radio, hwmode, htmode);
         blobmsg_for_each_attr(curif, tb[WIRELESS_INTERFACES], remif) {
             blobmsg_parse(wireless_interface_policy, __WIRELESS_INTERFACE_MAX, tbi, blobmsg_data(curif), blobmsg_len(curif));
+            section = blobmsg_get_string(tbi[WIRELESS_INTERFACE_SECTION]);
+            if (!section)
+                continue;
             blobmsg_parse(wireless_ifconfig_policy, __WIRELESS_IFCONFIG_MAX, tbic, blobmsg_data(tbi[WIRELESS_INTERFACE_CONFIG]), blobmsg_len(tbi[WIRELESS_INTERFACE_CONFIG]));
-            fprintf(stderr, " found wifi-iface section %s\n", blobmsg_get_string(tbi[WIRELESS_INTERFACE_SECTION]));
+            fprintf(stderr, " found wifi-iface section %s\n", section);
             if(tbi[WIRELESS_INTERFACE_IFNAME] && tbic[WIRELESS_IFCONFIG_MULTI_AP] && blobmsg_get_u32(tbic[WIRELESS_IFCONFIG_MULTI_AP])) {
+                struct interfaceWifi *interface_wifi;
+                char *ifname = blobmsg_get_string(tbi[WIRELESS_INTERFACE_IFNAME]);
+
                 blobmsg_for_each_attr(curnt, tbic[WIRELESS_IFCONFIG_NETWORK], remnt) {
                     curucinet = blobmsg_get_string(curnt);
                     if (!ucinet)
@@ -206,8 +243,91 @@ static void wireless_status_cb(struct ubus_request *req, int type, struct blob_a
                     else if (strcmp(ucinet, curucinet))
                         fprintf(stderr, "warning: wifi-iface assigned to different network %s != %s\n", ucinet, curucinet);
                 }
-                fprintf(stderr, " adding multi-ap iface %s\n", blobmsg_get_string(tbi[WIRELESS_INTERFACE_IFNAME]));
-                addInterface(blobmsg_get_string(tbi[WIRELESS_INTERFACE_IFNAME]));
+
+                fprintf(stderr, " adding multi-ap iface %s type %d\n", ifname, media_type);
+
+                int fd;
+                struct ifreq s;
+                mac_address addr;
+
+                strcpy(s.ifr_name, ifname);
+                fd = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
+                if (0 != ioctl(fd, SIOCGIFHWADDR, &s))
+                {
+                    PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] Could not obtain MAC address of interface %s\n", ifname);
+                    close(fd);
+                    continue;
+                }
+                close(fd);
+                memcpy(addr, s.ifr_addr.sa_data, 6);
+
+                char sys_path[100];
+
+                snprintf(sys_path, sizeof(sys_path), "/sys/class/net/%s/phy80211/name", ifname);
+
+                FILE *fp = fopen(sys_path, "r");
+                if(fp == NULL) {
+                    PLATFORM_PRINTF_DEBUG_ERROR("No sysfs phy80211 name for wireless interface %s\n", ifname);
+                    continue;
+                }
+                char phy[30];
+                if (NULL == fgets(phy, sizeof(phy), fp))
+                {
+                    PLATFORM_PRINTF_DEBUG_ERROR("Failed to read phy name from %s\n", sys_path);
+                    fclose(fp);
+                    continue;
+                }
+                fclose(fp);
+
+                /* Strip trailing newline */
+                phy[strlen(phy) - 1] = '\0';
+                struct radio *radio = findLocalRadio(phy);
+                interface_wifi = interfaceWifiAlloc(addr, local_device);
+                radioAddInterfaceWifi(radio, interface_wifi);
+
+                interface_wifi->i.name = strdup(ifname);
+                interface_wifi->i.power_state = interface_power_state_on;
+                interface_wifi->i.media_type = media_type;
+
+                const char* role = blobmsg_get_string(tbic[WIRELESS_IFCONFIG_MODE]);
+                if (!strcmp(role, "ap")) {
+                    interface_wifi->role = interface_wifi_role_ap;
+                    switch (blobmsg_get_u32(tbic[WIRELESS_IFCONFIG_MULTI_AP])) {
+                    case 1:
+                        interface_wifi->bssInfo.backhaul = true;
+                        interface_wifi->bssInfo.backhaul_only = true;
+                        break;
+                    case 2:
+                        interface_wifi->bssInfo.backhaul = false;
+                        break;
+                    case 3:
+                        interface_wifi->bssInfo.backhaul = true;
+                        interface_wifi->bssInfo.backhaul_only = false;
+                        break;
+                    default:
+                        PLATFORM_PRINTF_DEBUG_ERROR("Unkown multiap mode %d for interface %s\n", \
+                                                    blobmsg_get_u32(tbic[WIRELESS_IFCONFIG_MULTI_AP]), ifname);
+                        break;
+                    }
+                    memcpy(interface_wifi->bssInfo.bssid, addr, 6);
+                } else if (!strcmp(role, "sta"))
+                    interface_wifi->role = interface_wifi_role_sta;
+                else
+                    interface_wifi->role = interface_wifi_role_other;
+
+                copyLengthString(interface_wifi->bssInfo.ssid.ssid, &interface_wifi->bssInfo.ssid.length,
+                                 blobmsg_get_string(tbic[WIRELESS_IFCONFIG_SSID]),
+                                 sizeof(interface_wifi->bssInfo.ssid.ssid));
+                if (tbic[WIRELESS_IFCONFIG_KEY]) {
+                    copyLengthString(interface_wifi->bssInfo.key, &interface_wifi->bssInfo.key_len,
+                                     blobmsg_get_string(tbic[WIRELESS_IFCONFIG_KEY]),
+                                     sizeof(interface_wifi->bssInfo.key));
+                    interface_wifi->bssInfo.auth_mode = auth_mode_wpa2psk;
+                } else {
+                    interface_wifi->bssInfo.auth_mode = auth_mode_open;
+                }
+
+                addInterface(ifname);
             }
         }
     }
@@ -552,8 +672,6 @@ int main(int argc, char *argv[])
 
     PLATFORM_PRINTF_DEBUG_SET_VERBOSITY_LEVEL(verbosity_counter);
 
-    uci_get_interfaces();
-
     // Initialize platform-specific code
     //
     if (0 == PLATFORM_INIT())
@@ -577,9 +695,7 @@ int main(int argc, char *argv[])
         return AL_ERROR_OS;
     }
 
-    // Collect interfaces
-    PLATFORM_PRINTF_DEBUG_DETAIL("Retrieving list of local interfaces...\n");
-    createLocalInterfaces();
+    uci_get_interfaces();
 
     /* @todo HACK backhaul SSIDs will create a new VIF for each connected bSTA. Include these in the list of interfaces
      * so we can send/receive packets on them. Note that this will screw up the topology somewhat. To reduce the fallout,
