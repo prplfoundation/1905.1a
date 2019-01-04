@@ -712,17 +712,17 @@ uint8_t DMisInterfaceBridged(char *local_interface_name)
 
 uint8_t *DMmacToAlMac(uint8_t *mac_address)
 {
-    struct interface *interface = findDeviceInterface(mac_address);
     uint8_t *ret;
+    struct alDevice *device = alDeviceFindFromAnyAddress(mac_address);
 
-    if (interface == NULL)
+    if (device == NULL)
     {
         return NULL;
     }
     else
     {
         ret = (uint8_t *)memalloc(sizeof(uint8_t)*6);
-        memcpy(ret, interface->owner->al_mac_addr, 6);
+        memcpy(ret, device->al_mac_addr, 6);
         return ret;
     }
 }
