@@ -299,10 +299,11 @@ int getIfIndex(const char *interface_name)
     strncpy(ifr.ifr_name, interface_name, IFNAMSIZ);
     if (ioctl(s, SIOCGIFINDEX, &ifr) == -1)
     {
-          PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] ioctl('%s',SIOCGIFINDEX) returned with errno=%d (%s) while opening a RAW socket\n",
-                                      interface_name, errno, strerror(errno));
-          close(s);
-          return -1;
+        /* The "fake" interfaces may not exist, so this will fail. Don't print an error message, it is too verbose. */
+        // PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] ioctl('%s',SIOCGIFINDEX) returned with errno=%d (%s) while opening a RAW socket\n",
+        //                           interface_name, errno, strerror(errno));
+        close(s);
+        return -1;
     }
     close(s);
     return ifr.ifr_ifindex;

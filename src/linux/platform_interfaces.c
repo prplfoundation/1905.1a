@@ -1392,9 +1392,11 @@ uint8_t PLATFORM_SEND_RAW_PACKET(const char *interface_name, const uint8_t *dst_
     strncpy(ifr.ifr_name, interface_name, IFNAMSIZ);
     if (ioctl(s, SIOCGIFINDEX, &ifr) == -1)
     {
-          PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] ioctl('%s',SIOCGIFINDEX) returned with errno=%d (%s) while opening a RAW socket\n", interface_name, errno, strerror(errno));
-          close(s);
-          return 0;
+        /* The "fake" interfaces may not exist, so this will fail. Don't print an error message, it is too verbose.
+           Also don't return an error; just drop the packet. */
+        // PLATFORM_PRINTF_DEBUG_ERROR("[PLATFORM] ioctl('%s',SIOCGIFINDEX) returned with errno=%d (%s) while opening a RAW socket\n", interface_name, errno, strerror(errno));
+        close(s);
+        return 1;
     }
     ifindex = ifr.ifr_ifindex;
     PLATFORM_PRINTF_DEBUG_DETAIL("[PLATFORM] Successfully got interface index %d\n", ifindex);
