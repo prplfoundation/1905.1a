@@ -150,9 +150,6 @@ static bool uci_teardown_iface(struct interface *interface)
         return false;
     }
 
-    /* @todo The removal of the interface should be detected through netlink. For the time being, however, we update the data model
-     * straight away. */
-    interfaceWifiRemove(interface_wifi);
     return uci_commit_wireless();
 }
 
