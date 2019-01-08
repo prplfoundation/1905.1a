@@ -285,6 +285,19 @@ static void uci_set_configured(bool configured)
     uci_invoke("set", &b);
 
     uci_commit_wireless();
+
+    /* @todo HACK
+     *
+     * Since the mainloop doesn't support dynamically adding new interfaces, we
+     * exit here. procd will take care of restarting.
+     *
+     * We only need to do this after configuring; configured == false means that
+     * we got a RENEW, so in that case the interfaces still exist.
+     *
+     */
+    if (configured) {
+        exit(0);
+    }
 }
 
 /*
