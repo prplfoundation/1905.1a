@@ -283,6 +283,9 @@ static void uci_set_configured(bool configured)
     blobmsg_add_string(&b, "configured", configured ? "1" : "0");
     blobmsg_close_table(&b, values);
     uci_invoke("set", &b);
+    blob_buf_init(&b, 0);
+    blobmsg_add_string(&b, "config", "prplmesh");
+    uci_invoke("commit", &b);
 
     uci_commit_wireless();
 
