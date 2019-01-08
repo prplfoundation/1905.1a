@@ -1217,12 +1217,7 @@ uint8_t process1905Cmdu(struct CMDU *c, struct interface *receiving_interface, u
             struct radio *radio;
             dlist_for_each(radio, local_device->radios, l)
             {
-                /* Radio is considered unconfigured if there are no configured BSSes.
-                 *
-                 * @todo make this an explicit member; it's possible that the radio has a default configuration, or that the
-                 * configuration came over Multi-AP and was restored after reboot but should be reconfirmed.
-                 */
-                if (radio->configured_bsses.length == 0)
+                if (!radio->configured)
                 {
                     // Check band
                     unsigned band;
