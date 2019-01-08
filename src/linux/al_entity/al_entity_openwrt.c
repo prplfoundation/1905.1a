@@ -61,6 +61,7 @@
 #include "../../platform_interfaces.h"
 #include "../platform_interfaces_priv.h"            // addInterface
 #include "../platform_alme_server_priv.h"           // almeServerPortSet()
+#include "../platform_uci.h"
 #include "../../al.h"                                  // start1905AL
 
 #include <datamodel.h>
@@ -188,7 +189,7 @@ static void wireless_status_cb(struct ubus_request *req, int type, struct blob_a
     char *ucinet = NULL, *curucinet = NULL;
 
     blobmsg_for_each_attr(cur, msg, rem) {
-        char *radio = blobmsg_name(cur);
+        const char *radio = blobmsg_name(cur);
         char *section, *hwmode, *htmode;
         uint16_t media_type = INTERFACE_TYPE_UNKNOWN;
         bool is11a;
@@ -719,6 +720,8 @@ int main(int argc, char *argv[])
             }
         }
     }
+
+    uci_register_handlers();
 
     start1905AL();
 
