@@ -161,7 +161,7 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
     char macstr[18];
     struct blob_buf b = {0,};
     void *values;
-    uint8_t multi_ap;
+    const char *multi_ap;
 
     blob_buf_init(&b, 0);
     blobmsg_add_string(&b, "config", "wireless");
@@ -189,20 +189,20 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
 
     if (ap) {
         if (bssInfo.backhaul && bssInfo.backhaul_only) {
-            multi_ap = 1;
+            multi_ap = "1";
         } else if (bssInfo.backhaul) {
-            multi_ap = 3;
+            multi_ap = "3";
         } else {
-            multi_ap = 2; /* Fronthaul only */
+            multi_ap = "2"; /* Fronthaul only */
         }
     } else {
-        multi_ap = 1; /* STA is always a backhaul STA */
+        multi_ap = "1"; /* STA is always a backhaul STA */
     }
-    blobmsg_add_u8(&b, "multi_ap", multi_ap);
+    blobmsg_add_string(&b, "multi_ap", multi_ap);
 
     if (ap && !bssInfo.backhaul_only) {
         /* Fronthaul BSS must have WPS enabled */
-        blobmsg_add_u8(&b, "wps_pushbutton", 1);
+        blobmsg_add_string(&b, "wps_pushbutton", "1");
         if (local_device->backhaul_ssid.length > 0) {
             uci_blobmsg_add_string(&b, "multi_ap_backhaul_ssid",
                                    local_device->backhaul_ssid.ssid, local_device->backhaul_ssid.length);
