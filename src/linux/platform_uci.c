@@ -162,6 +162,7 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
     struct blob_buf b = {0,};
     void *values;
     const char *multi_ap;
+    const mac_address empty_bssid = {0,};
 
     blob_buf_init(&b, 0);
     blobmsg_add_string(&b, "config", "wireless");
@@ -170,9 +171,13 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
     blobmsg_add_string(&b, "device", (char *)radio->priv);
     blobmsg_add_string(&b, "mode", ap ? "ap" : "sta");
     blobmsg_add_string(&b, "network", "lan"); /* @todo set appropriate network */
-    snprintf(macstr, sizeof(macstr), MACSTR, MAC2STR(bssInfo.bssid));
-    blobmsg_add_string(&b, "bssid", macstr);
     uci_blobmsg_add_string(&b, "ssid", bssInfo.ssid.ssid, bssInfo.ssid.length);
+
+    if (memcmp(bssInfo.bssid, empty_bssid, sizeof(mac_address)) != 0) {
+        snprintf(macstr, sizeof(macstr), MACSTR, MAC2STR(bssInfo.bssid));
+        blobmsg_add_string(&b, "bssid", macstr);
+    }
+
     switch (bssInfo.auth_mode) {
     case auth_mode_open:
         blobmsg_add_string(&b, "encryption", "none");
