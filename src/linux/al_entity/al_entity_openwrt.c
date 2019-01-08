@@ -540,7 +540,7 @@ static void registrar_config_parse(struct blob_attr *tb[PRPLMESH_MAX])
         wsc_info->bss_info.backhaul = atoi(blobmsg_get_string(tb[PRPLMESH_BACKHAUL]));
     }
     if (tb[PRPLMESH_BACKHAUL_ONLY]) {
-        wsc_info->bss_info.backhaul = atoi(blobmsg_get_string(tb[PRPLMESH_BACKHAUL_ONLY]));
+        wsc_info->bss_info.backhaul_only = atoi(blobmsg_get_string(tb[PRPLMESH_BACKHAUL_ONLY]));
     }
     if (tb[PRPLMESH_BAND]) {
         wsc_info->rf_bands = atoi(blobmsg_get_string(tb[PRPLMESH_BAND]));
