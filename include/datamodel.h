@@ -377,6 +377,14 @@ struct alDevice {
     struct ssid backhaul_ssid; /**< @brief If len != 0, the single backhaul SSID on this device. */
     uint8_t     backhaul_key[64]; /**< @brief If backhaul_ssid is set, its WPA2 key. */
     size_t      backhaul_key_length; /**< @brief Length of backhaul_key. */
+
+    /** @brief Configured callback.
+     *
+     * Platform code must implement this function to persist the configured
+     * status. Platform code must also initialize the configured state at
+     * startup.
+     */
+    void (*setConfigured) (bool configured);
 };
 
 /** @brief The local AL device.
@@ -552,6 +560,9 @@ struct interface *alDeviceFindInterface(const struct alDevice *device, const mac
  * If the given ssid/key is different from the already configured one, this will call updateBackhaulSsid on all radios.
  */
 void localDeviceUpdateBackhaulSsid(const struct ssid ssid, const uint8_t *key, size_t key_length);
+
+/** @brief Set and persist the configured state of the local device. */
+void localDeviceSetConfigured(bool configured);
 
 /** @brief Find the interface belonging to any device.
  *

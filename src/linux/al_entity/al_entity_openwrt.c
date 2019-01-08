@@ -451,6 +451,7 @@ enum {
     PRPLMESH_BACKHAUL,
     PRPLMESH_BACKHAUL_ONLY,
     PRPLMESH_BAND,
+    PRPLMESH_CONFIGURED,
     PRPLMESH_MAX,
 };
 
@@ -464,6 +465,7 @@ static const struct blobmsg_policy prplmesh_policy[PRPLMESH_MAX] = {
     [PRPLMESH_BACKHAUL] = { .name = "backhaul", .type = BLOBMSG_TYPE_STRING },
     [PRPLMESH_BACKHAUL_ONLY] = { .name = "backhaul_only", .type = BLOBMSG_TYPE_STRING },
     [PRPLMESH_BAND] = { .name = "band", .type = BLOBMSG_TYPE_STRING },
+    [PRPLMESH_CONFIGURED] = { .name = "configured", .type = BLOBMSG_TYPE_STRING },
 };
 
 static void prplmesh_config_parse(struct blob_attr *tb[PRPLMESH_MAX])
@@ -507,6 +509,17 @@ static void prplmesh_config_parse(struct blob_attr *tb[PRPLMESH_MAX])
         }
     }
     almeServerPortSet(alme_port_number);
+
+    if (tb[PRPLMESH_CONFIGURED]) {
+        const char *value = blobmsg_get_string(tb[PRPLMESH_CONFIGURED]);
+        if (!strcmp(value, "true") ||
+                !strcmp(value, "yes") ||
+                !strcmp(value, "on") ||
+                !strcmp(value, "enabled") ||
+                !strcmp(value, "1")) {
+            local_device->configured = true;
+        }
+    }
 
     PLATFORM_PRINTF_DEBUG_INFO("Starting AL entity (AL MAC = "MACSTR"). Port = %u. Map whole network = %d...\n",
                                MAC2STR(al_mac_address), alme_port_number, map_whole_network);

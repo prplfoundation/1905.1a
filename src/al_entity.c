@@ -803,7 +803,7 @@ void _triggerAPSearchProcess(void)
     }
 
     /* All radios configured -> whole system is configured */
-    /* @todo mark the system as configured */
+    localDeviceSetConfigured(true);
 }
 
 

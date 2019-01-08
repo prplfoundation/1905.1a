@@ -1501,7 +1501,9 @@ uint8_t process1905Cmdu(struct CMDU *c, struct interface *receiving_interface, u
         case CMDU_TYPE_AP_AUTOCONFIGURATION_RENEW:
         {
             PLATFORM_PRINTF_DEBUG_INFO("<-- CMDU_TYPE_AP_AUTOCONFIGURATION_RENEW (%s)\n", receiving_interface->name);
-            // TODO
+
+            localDeviceSetConfigured(false);
+            return PROCESS_CMDU_OK_TRIGGER_AP_SEARCH;
 
             break;
         }

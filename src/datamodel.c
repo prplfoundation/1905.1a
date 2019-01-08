@@ -364,6 +364,25 @@ void localDeviceUpdateBackhaulSsid(const struct ssid ssid, const uint8_t *key, s
     }
 }
 
+void localDeviceSetConfigured(bool configured)
+{
+    local_device->configured = true;
+    if (local_device->setConfigured)
+    {
+        local_device->setConfigured(true);
+    } else {
+        PLATFORM_PRINTF_DEBUG_WARNING("Configured state can't be peristed.\n");
+    }
+    /* When unconfiguring, also mark all radios as unconfigured. */
+    if (!configured)
+    {
+        struct radio *radio;
+        dlist_for_each(radio, local_device->radios, l)
+        {
+            radio->configured = false;
+        }
+    }
+}
 
 struct interface *findDeviceInterface(const mac_address addr)
 {

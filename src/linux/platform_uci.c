@@ -146,11 +146,7 @@ static bool uci_teardown_iface(struct interface *interface)
     blobmsg_add_string(&b, "bssid", macstr);
     blobmsg_add_string(&b, "device", (char *)interface_wifi->radio->priv);
     blobmsg_close_table(&b, match);
-    if (!uci_invoke("delete", &b)) {
-        return false;
-    }
-
-    return uci_commit_wireless();
+    return uci_invoke("delete", &b);
 }
 
 static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool ap)
@@ -216,11 +212,7 @@ static bool uci_create_iface(struct radio *radio, struct bssInfo bssInfo, bool a
     }
 
     blobmsg_close_table(&b, values);
-    if (!uci_invoke("add", &b)) {
-        return false;
-    }
-
-    return uci_commit_wireless();
+    return uci_invoke("add", &b);
 }
 
 static bool uci_create_ap(struct radio *radio, struct bssInfo bssInfo)
@@ -275,8 +267,24 @@ static bool uci_set_backhaul_ssid(__attribute__((unused)) struct radio *radio,
      */
     result = uci_set_backhaul_values(ssid, key, key_length, "2");
     result = result && uci_set_backhaul_values(ssid, key, key_length, "3");
-    result = result && uci_commit_wireless();
     return result;
+}
+
+static void uci_set_configured(bool configured)
+{
+    struct blob_buf b = {0,};
+    void *values;
+
+    blob_buf_init(&b, 0);
+    blobmsg_add_string(&b, "config", "prplmesh");
+    blobmsg_add_string(&b, "type", "prplmesh");
+
+    values = blobmsg_open_table(&b, "values");
+    blobmsg_add_string(&b, "configured", configured ? "1" : "0");
+    blobmsg_close_table(&b, values);
+    uci_invoke("set", &b);
+
+    uci_commit_wireless();
 }
 
 /*
@@ -368,6 +376,8 @@ void uci_register_handlers(void)
         fprintf(stderr, "failed to connect to ubus.\n");
         return;
     }
+
+    local_device->setConfigured = uci_set_configured;
 
     blob_buf_init(&req, 0);
     blobmsg_add_string(&req, "config", "wireless");
