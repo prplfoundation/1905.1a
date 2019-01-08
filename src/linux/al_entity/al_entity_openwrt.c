@@ -58,9 +58,8 @@
 #include <hlist.h>
 
 #include <platform.h>
+#include "../../platform_interfaces.h"
 #include "../platform_interfaces_priv.h"            // addInterface
-#include "../platform_interfaces_ghnspirit_priv.h"  // registerGhnSpiritInterfaceType
-#include "../platform_interfaces_simulated_priv.h"  // registerSimulatedInterfaceType
 #include "../platform_alme_server_priv.h"           // almeServerPortSet()
 #include "../../al.h"                                  // start1905AL
 
@@ -644,9 +643,6 @@ int main(int argc, char *argv[])
     int   c;
 
     int verbosity_counter = 1; // Only ERROR and WARNING messages
-
-    registerGhnSpiritInterfaceType();
-    registerSimulatedInterfaceType();
 
     while ((c = getopt (argc, argv, "vh:")) != -1)
     {
