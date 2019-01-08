@@ -1229,6 +1229,44 @@ uint8_t start1905AL()
                         }
                         free_LIST_OF_1905_INTERFACES(ifs_names, ifs_nr);
 
+                        /*
+                         * @todo HACK
+                         *
+                         * At the time autoconfiguration is triggered, the
+                         * (backhaul) interface on which we want to do
+                         * autoconfiguration may not be fully operational yet.
+                         * Thus, the autoconfiguration search message may be
+                         * lost. Since we currently don't have a retransmission
+                         * mechanism, this means that autoconfiguration will
+                         * not complete.
+                         *
+                         * This is specifically the case when Multi-AP PBC is
+                         * used, because then the backhaul link is brought up
+                         * externally from this program.
+                         *
+                         * As a workaround, continue performing
+                         * autoconfiguration at the same rate as topology
+                         * discovery, but only when we have a backhaul link.
+                         *
+                         */
+                        if (!local_device->configured)
+                        {
+                            struct interface *interface;
+                            struct interfaceWifi *interface_wifi;
+                            dlist_for_each(interface, local_device->interfaces, l)
+                            {
+                                if (interface->type == interface_type_wifi)
+                                {
+                                    interface_wifi = container_of(interface, struct interfaceWifi, i);
+                                    if (interface_wifi->role == interface_wifi_role_sta)
+                                    {
+                                        PLATFORM_PRINTF_DEBUG_INFO("Unconfigured, with backhaul, trigger AP Autoconfig\n");
+                                        _triggerAPSearchProcess();
+                                        break;
+                                    }
+                                }
+                            }
+                        }
                         break;
                     }
 
