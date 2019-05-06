@@ -873,7 +873,7 @@ void createLocalInterfaces(void)
     for (i = 0; i < interfaces_nr; i++)
     {
         const char *interface_name = interfaces_list[i];
-        struct interfaceInfo m;
+        struct interfaceInfo m = {0};
         struct interface *interface;
         struct interfaceWifi *interface_wifi = NULL;
 
