@@ -119,6 +119,7 @@ struct radio*   radioAlloc(struct alDevice *dev, const mac_address mac)
 struct radio*   radioAllocLocal(const mac_address mac, const char *name, int index)
 {
     struct radio *r = radioAlloc(local_device, mac);
+    PLATFORM_PRINTF_DEBUG_INFO("Alloc radio %s\n", name);
     strcpy(r->name, name);
     r->index = index;
     r->configured = local_device->configured;

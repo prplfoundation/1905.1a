@@ -92,11 +92,13 @@ static bool handleSupportedServiceTLV(struct alDevice *sender_device, struct tlv
     struct _supportedService* service;
 
     if (supportedService == NULL) {
+        PLATFORM_PRINTF_DEBUG_INFO("No supported service\n");
         return false;
     }
 
     dlist_for_each(service, supportedService->s.h.children[0], s.h.l)
     {
+        PLATFORM_PRINTF_DEBUG_INFO("Supported service %d\n", service->service);
         switch (service->service)
         {
         case SERVICE_MULTI_AP_AGENT:
@@ -1209,6 +1211,7 @@ uint8_t process1905Cmdu(struct CMDU *c, struct interface *receiving_interface, u
             sender_device = alDeviceFindFromAnyAddress(src_addr);
 
             bool sender_is_controller = handleSupportedServiceTLV(sender_device, supportedService);
+            PLATFORM_PRINTF_DEBUG_INFO("Search repsonse controller = %d\n", sender_is_controller);
 
             /* @todo instead of doing transmission of WSC from here, it should be repeated autonomously and repeated until we get
              * a response from the controller.

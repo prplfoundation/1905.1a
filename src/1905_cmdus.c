@@ -348,6 +348,7 @@ static uint8_t _check_CMDU_rules(const struct CMDU *p, uint8_t rules_type)
     i = 0;
     while (NULL != p->list_of_TLVs[i])
     {
+        PLATFORM_PRINTF_DEBUG_INFO("TLV %d type %d\n", i, p->list_of_TLVs[i]->type);
         counter[p->list_of_TLVs[i]->type]++;
         i++;
     }

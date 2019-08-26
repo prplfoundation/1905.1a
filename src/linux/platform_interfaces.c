@@ -729,7 +729,7 @@ struct interfaceInfo *PLATFORM_GET_1905_INTERFACE_INFO(const char *interface_nam
     m->interface_type_data.other.media_specific.unsupported.bytes_nr = 0;
     m->interface_type_data.other.media_specific.unsupported.bytes    = NULL;
 
-    m->is_secured                     = 0;
+    m->is_secured                     = 1;
     m->push_button_on_going           = 2;    // "2" means "unsupported"
     m->push_button_new_mac_address[0] = 0x00;
     m->push_button_new_mac_address[1] = 0x00;
@@ -886,6 +886,7 @@ void createLocalInterfaces(void)
         // Let's check if this is the case.
         //
         if (_executeInterfaceStub(interface_name, STUB_TYPE_GET_INFO, &m)) {
+            PLATFORM_PRINTF_DEBUG_INFO("Interface stub %s\n", interface_name);
             if ((m.interface_type & 0xFF00) == 0x0100) {
                 interface_wifi = interfaceWifiAlloc(m.mac_address, local_device);
                 interface = &interface_wifi->i;
@@ -924,6 +925,20 @@ void createLocalInterfaces(void)
                 }
                 copyLengthString(interface_wifi->bssInfo.key, &interface_wifi->bssInfo.key_len,
                                  m.interface_type_data.ieee80211.network_key, sizeof(interface_wifi->bssInfo.key));
+
+                static unsigned index = 0;
+                struct radio *radio = radioAllocLocal(m.mac_address, interface_name, index++);
+                radioAddInterfaceWifi(radio, interface_wifi);
+                radio->maxBSS = 2;
+                radio->maxApStations = 1;
+                radio->confAnts[0] = 1;
+                radio->confAnts[1] = 1;
+                static struct radioBand *band;
+                band = zmemalloc(sizeof(struct radioBand));
+                PTRARRAY_ADD(radio->bands, band);
+                band->id = BAND_2GHZ;
+                band->ht40 = false;
+
             } else {
                 interface = interfaceAlloc(m.mac_address, local_device);
                 if ((m.interface_type & 0xFF00) == 0x0000) {

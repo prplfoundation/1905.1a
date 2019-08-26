@@ -764,15 +764,20 @@ void _triggerAPSearchProcess(void)
 
     struct radio *radio;
 
+    PLATFORM_PRINTF_DEBUG_INFO("Trigger AP search\n");
     if (registrarIsLocal())
     {
-        PLATFORM_PRINTF_DEBUG_DETAIL("Skipping AP Search on registrar device\n");
+        PLATFORM_PRINTF_DEBUG_INFO("Skipping AP Search on registrar device\n");
         return;
     }
 
     dlist_for_each(radio, local_device->radios, l)
     {
-        if (!radio->configured)
+        if (radio->configured)
+        {
+            PLATFORM_PRINTF_DEBUG_INFO("Radio %s already configured\n", radio->name);
+        }
+        else
         {
             mid = getNextMid();
             /* @todo we always use the first band, but we should try all */
@@ -793,6 +798,7 @@ void _triggerAPSearchProcess(void)
                 unconfigured_ap_band = IEEE80211_FREQUENCY_BAND_60_GHZ;
                 break;
             }
+            PLATFORM_PRINTF_DEBUG_INFO("Send autoconfig search %u\n", unconfigured_ap_band);
             if (0 == send1905APAutoconfigurationSearchPacket(mid, unconfigured_ap_band))
             {
                 PLATFORM_PRINTF_DEBUG_WARNING("Could not send 1905 AP-autoconfiguration search message\n");
@@ -801,6 +807,7 @@ void _triggerAPSearchProcess(void)
             return;
         }
     }
+    PLATFORM_PRINTF_DEBUG_INFO("All radios configured\n");
 
     /* All radios configured -> whole system is configured */
     localDeviceSetConfigured(true);
@@ -1258,7 +1265,7 @@ uint8_t start1905AL()
                                 if (interface->type == interface_type_wifi)
                                 {
                                     interface_wifi = container_of(interface, struct interfaceWifi, i);
-                                    if (interface_wifi->role == interface_wifi_role_sta)
+//                                    if (interface_wifi->role == interface_wifi_role_sta)
                                     {
                                         PLATFORM_PRINTF_DEBUG_INFO("Unconfigured, with backhaul, trigger AP Autoconfig\n");
                                         _triggerAPSearchProcess();

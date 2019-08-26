@@ -1598,6 +1598,7 @@ static struct tlv *_obtainLocalRadioBasicCapabilitiesTLV(const struct radio *rad
             X1905_TLV_ALLOC(apRadioBasicCapabilities, TLV_TYPE_AP_RADIO_BASIC_CAPABILITIES, NULL);
     apRadioBasicCapabilities->maxbss = (uint8_t) radio->maxBSS;
     memcpy(apRadioBasicCapabilities->radio_uid, radio->uid, 6);
+    return &apRadioBasicCapabilities->tlv;
     /* @todo determine classes and inoperable channels */
 }
 
@@ -3363,6 +3364,7 @@ uint8_t send1905APAutoconfigurationWSCM1Packet(const char *interface_name, uint1
 
     if (send_radio_basic_capabilities)
     {
+        PLATFORM_PRINTF_DEBUG_WARNING("Add BasicCapabilities\n");
         data_message.list_of_TLVs[1] = _obtainLocalRadioBasicCapabilitiesTLV(radio);
     }
 
@@ -3373,6 +3375,7 @@ uint8_t send1905APAutoconfigurationWSCM1Packet(const char *interface_name, uint1
     }
     else
     {
+        PLATFORM_PRINTF_DEBUG_WARNING("Sent packet\n");
         ret = 1;
     }
 
