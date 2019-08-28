@@ -278,7 +278,7 @@ int main(int argc, char *argv[])
     if (0 > netlink_collect_local_infos())
     {
         PLATFORM_PRINTF_DEBUG_ERROR("Failed to collect radios from netlink\n");
-        return AL_ERROR_OS;
+        //return AL_ERROR_OS;
     }
 
     // Collect interfaces
